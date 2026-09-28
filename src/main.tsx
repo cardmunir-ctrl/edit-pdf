@@ -1,3 +1,5 @@
+// Harus paling awal: pdfjs-dist accessed Iterator.prototype di top-level module.
+import './lib/iteratorPolyfill.ts';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
