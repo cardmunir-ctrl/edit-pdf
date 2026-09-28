@@ -502,10 +502,10 @@ export default function App() {
                   type="button"
                   onClick={() => setIsNeonModalOpen(true)}
                   className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-cyan-900 dark:text-cyan-200 bg-cyan-100 hover:bg-cyan-200 dark:bg-cyan-950/80 dark:hover:bg-cyan-900 border border-cyan-300 dark:border-cyan-800 rounded-xl cursor-pointer shadow-xs transition-colors"
-                  title="Tarik Data Laporan Gaji dari Database Neon Buku Produksi"
+                  title="Tarik Data Laporan Gaji Buku Produksi"
                 >
                   <Database className="w-4 h-4 text-cyan-700 dark:text-cyan-400" />
-                  <span>Ambil dari Buku Produksi (Neon)</span>
+                  <span>Buku Produksi</span>
                 </button>
               </div>
 

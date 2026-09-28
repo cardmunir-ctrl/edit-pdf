@@ -2,6 +2,9 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
+import dotenv from 'dotenv';
+
+dotenv.config({ quiet: true });
 
 const { Pool } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -33,6 +36,23 @@ function getNeonPool(connectionString?: string) {
     idleTimeoutMillis: 15000,
     max: 5,
   });
+}
+
+function toNumberOrZero(value: unknown): number {
+  if (value === null || value === undefined || value === '') return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Tanggal hanya diterima dalam format ISO date agar aman dipakai sebagai query parameter.
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseIsoDate(value: unknown): { ok: true; value: string } | { ok: false } {
+  if (value === null || value === undefined || value === '') return { ok: true, value: '' };
+  if (typeof value !== 'string') return { ok: false };
+  const trimmed = value.trim();
+  if (!ISO_DATE_PATTERN.test(trimmed)) return { ok: false };
+  return { ok: true, value: trimmed };
 }
 
 // In-memory receipt store
@@ -302,6 +322,112 @@ app.post('/api/neon/fetch-records', async (req, res) => {
     return res.status(400).json({
       success: false,
       error: err.message || 'Gagal mengambil data dari tabel ' + tableName,
+    });
+  } finally {
+    if (pool) pool.end().catch(() => {});
+  }
+});
+
+// Laporan Gaji Buku Produksi.
+// Setara query di Buku Produksi: buku_gaji -> status 'Lunas' -> ORDER BY tanggal DESC.
+// Nama tabel ditulis di server, tidak pernah diambil dari client, dan koneksi hanya
+// dibaca dari env (NEON_DATABASE_URL / DATABASE_URL).
+const LAPORAN_GAJI_SQL = `
+  SELECT
+    id,
+    tanggal,
+    worker_id,
+    worker_name,
+    items_detail,
+    gaji_pokok,
+    sisa_gaji,
+    potongan,
+    total,
+    status,
+    tipe,
+    parent_session_id,
+    created_at
+  FROM buku_gaji
+  WHERE status = 'Lunas'
+`;
+
+app.post('/api/neon/laporan-gaji', async (req, res) => {
+  const { limit, startDate, endDate } = req.body ?? {};
+
+  const safeLimit = Math.min(1000, Math.max(1, Number(limit) || 300));
+
+  const parsedStart = parseIsoDate(startDate);
+  const parsedEnd = parseIsoDate(endDate);
+  if (!parsedStart.ok || !parsedEnd.ok) {
+    return res.status(400).json({
+      success: false,
+      error: 'startDate dan endDate harus berformat YYYY-MM-DD',
+    });
+  }
+  if (parsedStart.value && parsedEnd.value && parsedStart.value > parsedEnd.value) {
+    return res.status(400).json({
+      success: false,
+      error: 'startDate tidak boleh lebih besar dari endDate',
+    });
+  }
+
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  if (parsedStart.value) {
+    params.push(parsedStart.value);
+    conditions.push(`tanggal >= $${params.length}::date`);
+  }
+  if (parsedEnd.value) {
+    params.push(parsedEnd.value);
+    conditions.push(`tanggal <= $${params.length}::date`);
+  }
+
+  params.push(safeLimit);
+  const sql =
+    LAPORAN_GAJI_SQL +
+    (conditions.length ? ` AND ${conditions.join(' AND ')}` : '') +
+    ` ORDER BY tanggal DESC LIMIT $${params.length}`;
+
+  let pool: pg.Pool | null = null;
+  try {
+    pool = getNeonPool();
+    const client = await pool.connect();
+    try {
+      const result = await client.query(sql, params);
+      const rows = result.rows.map((row: any) => ({
+        id: row.id,
+        tanggal: row.tanggal,
+        worker_id: row.worker_id,
+        worker_name: row.worker_name,
+        items_detail: Array.isArray(row.items_detail) ? row.items_detail : [],
+        gaji_pokok: toNumberOrZero(row.gaji_pokok),
+        sisa_gaji: toNumberOrZero(row.sisa_gaji),
+        potongan: toNumberOrZero(row.potongan),
+        total: toNumberOrZero(row.total),
+        status: row.status,
+        tipe: row.tipe,
+        parent_session_id: row.parent_session_id,
+        created_at: row.created_at,
+      }));
+
+      return res.json({
+        success: true,
+        source: 'buku_gaji',
+        filters: {
+          status: 'Lunas',
+          startDate: parsedStart.value || null,
+          endDate: parsedEnd.value || null,
+        },
+        rowCount: rows.length,
+        rows,
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(400).json({
+      success: false,
+      error: err.message || 'Gagal mengambil Laporan Gaji dari database Neon',
     });
   } finally {
     if (pool) pool.end().catch(() => {});

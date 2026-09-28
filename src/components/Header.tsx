@@ -35,11 +35,10 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNeonModal }) => {
               type="button"
               onClick={onOpenNeonModal}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer select-none bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-950/80 dark:hover:bg-cyan-900 dark:text-cyan-200 dark:border-cyan-800 shadow-2xs hover:shadow-xs active:scale-95"
-              title="Ambil Data Laporan Gaji dari Database Neon Buku Produksi"
+              title="Ambil Data Laporan Gaji Buku Produksi"
             >
               <Database className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-              <span className="hidden sm:inline">Buku Produksi (Neon)</span>
-              <span className="sm:hidden">Neon</span>
+              <span>Buku Produksi</span>
             </button>
           )}
 
