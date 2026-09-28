@@ -1,31 +1,27 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   X,
   Database,
   CheckCircle,
   AlertCircle,
   RefreshCw,
-  Search,
   CheckSquare,
   Square,
   FileSpreadsheet,
-  ArrowRight,
-  Sparkles,
-  Layers,
-  Table,
   Eye,
   Sliders,
   ShieldCheck,
   ChevronDown,
   Info,
 } from 'lucide-react';
-import {
-  ProductionSlipData,
-  convertSlipToReceiptItem,
-  formatRupiah,
-  renderSlipToDataUrl,
-} from '../lib/slipGenerator';
 import { ReceiptItem } from '../lib/pdfEngine';
+import { SlipGajiBukuProduksiTemplate, SlipGajiItem } from './SlipGajiBukuProduksiTemplate';
+
+interface SlipGajiPngResult {
+  dataUrl: string;
+  width: number;
+  height: number;
+}
 
 interface NeonBukuProduksiModalProps {
   isOpen: boolean;
@@ -34,6 +30,52 @@ interface NeonBukuProduksiModalProps {
 }
 
 const STORAGE_NEON_KEY = 'neon_buku_produksi_conn_str';
+
+const SLIP_COLOR_PROPERTIES = [
+  'color',
+  'background-color',
+  'border-top-color',
+  'border-right-color',
+  'border-bottom-color',
+  'border-left-color',
+  'outline-color',
+  'text-decoration-color',
+  'caret-color',
+  'fill',
+  'stroke',
+];
+
+// Tailwind v4 memakai oklch(), sedangkan html2canvas hanya bisa membaca rgb/hsl/hex.
+const normalizeModernColors = (clonedDoc: Document) => {
+  const ctx = document.createElement('canvas').getContext('2d');
+  if (!ctx) return;
+
+  const toRgb = (value: string) => {
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 1, 1);
+    ctx.fillStyle = value;
+    ctx.fillRect(0, 0, 1, 1);
+    const d = ctx.getImageData(0, 0, 1, 1).data;
+    return `rgb(${d[0]}, ${d[1]}, ${d[2]})`;
+  };
+
+  const visit = (el: HTMLElement) => {
+    const style = clonedDoc.defaultView?.getComputedStyle(el);
+    if (style) {
+      for (const prop of SLIP_COLOR_PROPERTIES) {
+        const value = style.getPropertyValue(prop);
+        if (value && (value.includes('oklch') || value.includes('color('))) {
+          el.style.setProperty(prop, toRgb(value));
+        }
+      }
+    }
+    for (const child of Array.from(el.children)) visit(child as HTMLElement);
+  };
+
+  visit(clonedDoc.documentElement);
+  visit(clonedDoc.body);
+};
 
 export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
   isOpen,
@@ -65,17 +107,8 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
   const [columns, setColumns] = useState<{ name: string; type: string }[]>([]);
   const [records, setRecords] = useState<any[]>([]);
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
-
-  // Column Mappings for Slip Gaji
-  const [colName, setColName] = useState<string>('');
-  const [colDept, setColDept] = useState<string>('');
-  const [colPeriod, setColPeriod] = useState<string>('');
-  const [colTotal, setColTotal] = useState<string>('');
-  const [colPieceRate, setColPieceRate] = useState<string>('');
-  const [colOvertime, setColOvertime] = useState<string>('');
-  const [colDeductions, setColDeductions] = useState<string>('');
-  const [colSlipNo, setColSlipNo] = useState<string>('');
 
   // Selected Slips to Import
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
@@ -170,23 +203,12 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
       const colList: { name: string; type: string }[] = schemaData.columns || [];
       setColumns(colList);
 
-      // Auto-detect mappings
-      const colNames = colList.map((c) => c.name.toLowerCase());
-      const findCol = (keys: string[]) => {
-        const found = colList.find((c) =>
-          keys.some((k) => c.name.toLowerCase().includes(k))
-        );
-        return found ? found.name : '';
-      };
-
-      setColName(findCol(['nama', 'karyawan', 'pekerja', 'employee', 'operator', 'penjahit']));
-      setColDept(findCol(['bagian', 'divisi', 'jabatan', 'departemen', 'dept', 'role']));
-      setColPeriod(findCol(['periode', 'period', 'bulan', 'minggu', 'tanggal', 'date']));
-      setColTotal(findCol(['total', 'gaji_bersih', 'diterima', 'sisa', 'net', 'amount']));
-      setColPieceRate(findCol(['borongan', 'jahit', 'upah', 'pokok', 'basic']));
-      setColOvertime(findCol(['lembur', 'overtime', 'ot']));
-      setColDeductions(findCol(['potongan', 'kasbon', 'pinjaman', 'deduction']));
-      setColSlipNo(findCol(['no_slip', 'nomor', 'kode', 'slip_no', 'invoice', 'id']));
+      if (!colList.some((c) => c.name.toLowerCase() === 'status')) {
+        setRecords([]);
+        setSelectedIndices(new Set());
+        setRecordError('Tabel "' + tableName + '" tidak punya kolom status. Gunakan tabel buku_gaji.');
+        return;
+      }
 
       // 2. Fetch rows
       const recRes = await fetch('/api/neon/fetch-records', {
@@ -196,7 +218,10 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
       });
       const recData = await recRes.json();
       if (recRes.ok && recData.success) {
-        const rows = recData.rows || [];
+        // Hanya slip yang sudah Lunas
+        const rows = (recData.rows || []).filter(
+          (row: any) => String(row.status ?? '').trim().toLowerCase() === 'lunas'
+        );
         setRecords(rows);
         // Default select all up to 8
         const initialSel = new Set<number>();
@@ -215,122 +240,37 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
     }
   };
 
-  // Instant Sample Demo Data from Buku Produksi
-  const handleLoadDemoData = async () => {
-    setIsLoadingRecords(true);
-    setRecordError(null);
-    try {
-      const res = await fetch('/api/neon/sample-buku-produksi');
-      const data = await res.json();
-      if (data.success && data.slips) {
-        setConnectionStatus({
-          connected: true,
-          dbName: 'neondb_buku_produksi',
-          user: 'neondb_owner',
-          message: 'Mode Demo Laporan Gaji Buku Produksi Aktif',
-        });
-        setSelectedTable('laporan_gaji_mingguan');
-        setTables(['laporan_gaji_mingguan', 'data_karyawan', 'hasil_potong_kain', 'produksi_jahit']);
-        setCandidateTables(['laporan_gaji_mingguan']);
+  // Map row buku_gaji -> SlipGajiItem (tanpa data tebakan)
+  const parsedSlips = useMemo<SlipGajiItem[]>(() => {
+    const toNumber = (val: any) => {
+      if (val === null || val === undefined || val === '') return 0;
+      const n = Number(val);
+      return isNaN(n) ? 0 : n;
+    };
 
-        // Set fake columns
-        setColumns([
-          { name: 'employeeName', type: 'text' },
-          { name: 'department', type: 'text' },
-          { name: 'period', type: 'text' },
-          { name: 'totalSalary', type: 'integer' },
-          { name: 'pieceRateSalary', type: 'integer' },
-          { name: 'overtimeSalary', type: 'integer' },
-          { name: 'deductions', type: 'integer' },
-          { name: 'slipNumber', type: 'text' },
-        ]);
-
-        setColName('employeeName');
-        setColDept('department');
-        setColPeriod('period');
-        setColTotal('totalSalary');
-        setColPieceRate('pieceRateSalary');
-        setColOvertime('overtimeSalary');
-        setColDeductions('deductions');
-        setColSlipNo('slipNumber');
-
-        setRecords(data.slips);
-        const sel = new Set<number>();
-        data.slips.forEach((_: any, i: number) => sel.add(i));
-        setSelectedIndices(sel);
-        setPreviewSlipIndex(0);
+    const parseItemsDetail = (val: any): SlipGajiItem['items_detail'] => {
+      if (Array.isArray(val)) return val;
+      if (typeof val === 'string' && val.trim()) {
+        try {
+          const parsed = JSON.parse(val);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
       }
-    } catch (err: any) {
-      setRecordError('Gagal memuat data demo: ' + err.message);
-    } finally {
-      setIsLoadingRecords(false);
-    }
-  };
+      return [];
+    };
 
-  // Parse row to ProductionSlipData
-  const parsedSlips = useMemo<ProductionSlipData[]>(() => {
-    if (!records || records.length === 0) return [];
-
-    return records.map((row, idx) => {
-      const empName =
-        row[colName] || row.employeeName || row.nama || row.nama_karyawan || `Karyawan #${idx + 1}`;
-      const dept = row[colDept] || row.department || row.bagian || 'Produksi';
-      const period =
-        row[colPeriod] || row.period || row.periode || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-      const slipNo =
-        row[colSlipNo] || row.slipNumber || row.no_slip || `SLIP-${String(idx + 1).padStart(3, '0')}`;
-
-      // Numbers parsing
-      const parseNum = (val: any) => {
-        if (!val) return 0;
-        if (typeof val === 'number') return val;
-        const n = Number(String(val).replace(/[^0-9.-]+/g, ''));
-        return isNaN(n) ? 0 : n;
-      };
-
-      const pieceRate = parseNum(row[colPieceRate] || row.pieceRateSalary || row.upah_borongan);
-      const overtime = parseNum(row[colOvertime] || row.overtimeSalary || row.lembur);
-      const deductions = parseNum(row[colDeductions] || row.deductions || row.potongan);
-      let total = parseNum(row[colTotal] || row.totalSalary || row.total);
-
-      if (total <= 0 && pieceRate > 0) {
-        total = pieceRate + overtime - deductions;
-      }
-      if (total <= 0) {
-        total = 1500000; // fallback standard wage
-      }
-
-      return {
-        id: `neon-slip-${idx}-${slipNo}`,
-        slipNumber: String(slipNo),
-        employeeName: String(empName),
-        department: String(dept),
-        period: String(period),
-        date: new Date().toLocaleDateString('id-ID', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        }),
-        workDays: row.workDays || row.hari_kerja || 6,
-        pieceRateSalary: pieceRate > 0 ? pieceRate : total - overtime + deductions,
-        overtimeSalary: overtime,
-        deductions: deductions,
-        totalSalary: total,
-        companyName: companyName,
-      };
-    });
-  }, [
-    records,
-    colName,
-    colDept,
-    colPeriod,
-    colTotal,
-    colPieceRate,
-    colOvertime,
-    colDeductions,
-    colSlipNo,
-    companyName,
-  ]);
+    return records.map((row: any) => ({
+      id: String(row.id ?? ''),
+      worker_name: String(row.worker_name ?? ''),
+      tanggal: String(row.tanggal ?? ''),
+      items_detail: parseItemsDetail(row.items_detail),
+      sisa_gaji: toNumber(row.sisa_gaji),
+      potongan: toNumber(row.potongan),
+      total: toNumber(row.total),
+    }));
+  }, [records]);
 
   // Toggle selection
   const toggleSelect = (index: number) => {
@@ -356,19 +296,100 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
   };
 
   // Import to Grid
-  const handleImport = () => {
+  const handleImport = async () => {
     const slipsToImport = parsedSlips.filter((_, idx) => selectedIndices.has(idx));
     if (slipsToImport.length === 0) return;
 
-    const receiptItems: ReceiptItem[] = slipsToImport.map((slip, index) =>
-      convertSlipToReceiptItem(slip, index)
-    );
+    setIsImporting(true);
+    setRecordError(null);
+    try {
+      const receiptItems: ReceiptItem[] = [];
+      for (let index = 0; index < slipsToImport.length; index++) {
+        const slip = slipsToImport[index];
+        const { dataUrl, width, height } = await renderSlipGajiToPng(slip);
+        receiptItems.push({
+          id: `bp-buku-gaji-${slip.id}`,
+          sourceFileName: `Slip_Gaji_${slip.id}`,
+          pageIndex: index + 1,
+          dataUrl,
+          originalDataUrl: dataUrl,
+          width,
+          height,
+          aspectRatio: width / height,
+          originalWidth: width,
+          originalHeight: height,
+          rotation: 0,
+          isAutoTrimmed: true,
+        });
+      }
 
-    onImportReceipts(receiptItems);
-    onClose();
+      onImportReceipts(receiptItems);
+      onClose();
+    } catch (err: any) {
+      setRecordError('Gagal membuat slip PNG: ' + (err?.message || String(err)));
+    } finally {
+      setIsImporting(false);
+    }
   };
 
+  // Off-screen PNG renderer for the Buku Produksi slip template
+  const [offscreenSlip, setOffscreenSlip] = useState<SlipGajiItem | null>(null);
+  const offscreenHostRef = useRef<HTMLDivElement | null>(null);
+  const pendingCaptureRef = useRef<{
+    resolve: (result: SlipGajiPngResult) => void;
+    reject: (error: Error) => void;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!offscreenSlip) return;
+    let cancelled = false;
+    const pending = pendingCaptureRef.current;
+    pendingCaptureRef.current = null;
+
+    const capture = async () => {
+      const host = offscreenHostRef.current;
+      if (!host) {
+        pending?.reject(new Error('Host render slip tidak tersedia'));
+        return;
+      }
+      try {
+        if (document.fonts?.ready) await document.fonts.ready;
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        if (cancelled || !offscreenHostRef.current) return;
+
+        const html2canvas = (await import('html2canvas')).default;
+        const canvas = await html2canvas(offscreenHostRef.current, {
+          scale: 2.5,
+          useCORS: true,
+          logging: false,
+          imageTimeout: 0,
+          backgroundColor: '#ffffff',
+          onclone: normalizeModernColors,
+        });
+        if (cancelled) return;
+
+        pending?.resolve({
+          dataUrl: canvas.toDataURL('image/png'),
+          width: canvas.width,
+          height: canvas.height,
+        });
+      } catch (err) {
+        pending?.reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    };
+
+    capture();
+  }, [offscreenSlip]);
+
+  const renderSlipGajiToPng = useCallback((item: SlipGajiItem): Promise<SlipGajiPngResult> => {
+    return new Promise<SlipGajiPngResult>((resolve, reject) => {
+      pendingCaptureRef.current = { resolve, reject };
+      setOffscreenSlip(item);
+    });
+  }, []);
+
   return (
+    <React.Fragment>
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fadeIn">
       <div className="bg-slate-900 w-full max-w-5xl max-h-[94vh] rounded-3xl shadow-2xl flex flex-col border border-slate-800 overflow-hidden text-slate-100">
         {/* Header */}
@@ -402,21 +423,11 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
         <div className="p-6 flex-1 overflow-y-auto space-y-5">
           {/* Section 1: Connection String & Quick Demo */}
           <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700/80 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
               <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                 <Database className="w-4 h-4 text-cyan-400" />
                 <span>Neon Connection String (PostgreSQL URL):</span>
               </label>
-
-              {/* Instant Try Demo Button */}
-              <button
-                type="button"
-                onClick={handleLoadDemoData}
-                className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white flex items-center gap-1.5 shadow-xs cursor-pointer transition-all active:scale-95"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>⚡ Coba Contoh Data Buku Produksi</span>
-              </button>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2">
@@ -579,20 +590,20 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
 
                           <div className="min-w-0">
                             <p className="font-bold text-slate-100 truncate flex items-center gap-1.5">
-                              <span>{slip.employeeName}</span>
+                              <span>{slip.worker_name}</span>
                               <span className="text-[10px] font-mono text-slate-400 font-normal">
-                                ({slip.department})
+                                ({slip.items_detail.length} rincian)
                               </span>
                             </p>
                             <p className="text-[10px] text-slate-400 font-mono">
-                              {slip.slipNumber} • {slip.period}
+                              {slip.id.substring(0, 8).toUpperCase()} • {slip.tanggal}
                             </p>
                           </div>
                         </div>
 
                         <div className="text-right shrink-0">
                           <span className="font-mono font-bold text-emerald-400 text-xs">
-                            {formatRupiah(slip.totalSalary)}
+                            Rp {slip.total.toLocaleString()}
                           </span>
                         </div>
                       </div>
@@ -609,18 +620,14 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
                     <span>Pratinjau Desain Slip Nota Borongan:</span>
                   </span>
                   <span className="text-[10px] text-slate-400">
-                    Karyawan: <b>{parsedSlips[previewSlipIndex]?.employeeName}</b>
+                    Karyawan: <b>{parsedSlips[previewSlipIndex]?.worker_name}</b>
                   </span>
                 </div>
 
                 <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-center">
                   {parsedSlips[previewSlipIndex] ? (
                     <div className="w-full bg-white rounded-xl shadow-xl overflow-hidden p-0.5">
-                      <img
-                        src={renderSlipToDataUrl(parsedSlips[previewSlipIndex])}
-                        alt="Slip Gaji Preview"
-                        className="w-full h-auto object-contain block"
-                      />
+                      <SlipGajiPreview item={parsedSlips[previewSlipIndex]} />
                     </div>
                   ) : (
                     <div className="py-20 text-slate-500 text-xs text-center">
@@ -662,14 +669,69 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
             <button
               type="button"
               onClick={handleImport}
-              disabled={selectedIndices.size === 0}
+              disabled={selectedIndices.size === 0 || isImporting}
               className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-cyan-600/20 disabled:opacity-40 cursor-pointer transition-all active:scale-95"
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Impor {selectedIndices.size} Slip ke Susunan Cetak A4</span>
+              {isImporting ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="w-4 h-4" />
+              )}
+              <span>
+                {isImporting
+                  ? 'Merender slip...'
+                  : `Impor ${selectedIndices.size} Slip ke Susunan Cetak A4`}
+              </span>
             </button>
           </div>
         </div>
+      </div>
+    </div>
+
+      {/* Off-screen slip host for html2canvas capture */}
+      <div className="fixed -left-[9999px] top-0 overflow-hidden" style={{ width: '600px' }} aria-hidden="true">
+        <div ref={offscreenHostRef}>
+          {offscreenSlip && <SlipGajiBukuProduksiTemplate item={offscreenSlip} />}
+        </div>
+      </div>
+    </React.Fragment>
+  );
+};
+
+const SlipGajiPreview: React.FC<{ item: SlipGajiItem }> = ({ item }) => {
+  const outerRef = useRef<HTMLDivElement | null>(null);
+  const innerRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
+  const [slipHeight, setSlipHeight] = useState(0);
+
+  useEffect(() => {
+    const outer = outerRef.current;
+    const inner = innerRef.current;
+    if (!outer || !inner) return;
+
+    const update = () => {
+      setScale(outer.clientWidth ? Math.min(1, outer.clientWidth / 600) : 1);
+      setSlipHeight(inner.offsetHeight);
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(outer);
+    observer.observe(inner);
+    return () => observer.disconnect();
+  }, [item]);
+
+  return (
+    <div
+      ref={outerRef}
+      className="w-full overflow-hidden"
+      style={{ height: slipHeight ? slipHeight * scale : undefined }}
+    >
+      <div
+        ref={innerRef}
+        style={{ width: 600, transform: `scale(${scale})`, transformOrigin: 'top left' }}
+      >
+        <SlipGajiBukuProduksiTemplate item={item} />
       </div>
     </div>
   );
