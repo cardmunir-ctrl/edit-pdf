@@ -364,23 +364,25 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
 
   return (
     <React.Fragment>
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fadeIn">
-      <div className="bg-slate-900 w-full max-w-5xl max-h-[94vh] rounded-3xl shadow-2xl flex flex-col border border-slate-800 overflow-hidden text-slate-100">
+    <div className="fixed inset-0 z-50 h-[100dvh] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-5 overflow-hidden animate-fadeIn">
+      <div className="bg-slate-900 w-full max-w-5xl max-h-full sm:max-h-[94vh] rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col min-h-0 border border-slate-800 overflow-hidden text-slate-100">
         {/* Header */}
-        <div className="px-4 sm:px-6 py-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 bg-slate-900/60">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 shrink-0 rounded-2xl bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center shadow-xs">
-              <FileSpreadsheet className="w-5 h-5 stroke-[2.2]" />
+        <div className="shrink-0 px-4 sm:px-6 py-2.5 sm:py-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 bg-slate-900/60">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-xl sm:rounded-2xl bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center shadow-xs">
+              <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.2]" />
             </div>
             <div className="min-w-0">
               <h2 className="text-sm sm:text-base font-bold text-white leading-tight">
                 Laporan Gaji — Buku Produksi
               </h2>
-              <p className="text-xs text-slate-400">Slip gaji yang sudah Lunas</p>
+              <p className="text-[11px] sm:text-xs text-slate-400 leading-tight">
+                Slip gaji yang sudah Lunas
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {hasData && (
               <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800/80 whitespace-nowrap">
                 {parsedSlips.length} slip tersedia
@@ -389,7 +391,7 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
             <button
               onClick={onClose}
               aria-label="Tutup modal"
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -397,11 +399,11 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-4 sm:p-6 flex-1 overflow-y-auto space-y-5">
+        <div className="p-3 sm:p-6 flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-3 sm:space-y-5">
           {/* Filters */}
           {hasData && (
-            <div className="p-4 bg-slate-800/40 rounded-2xl border border-slate-800 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <div className="p-3 sm:p-4 bg-slate-800/40 rounded-2xl border border-slate-800 space-y-2.5 sm:space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5">
                 <div className="relative">
                   <label
                     htmlFor="bp-search-worker"
@@ -416,12 +418,12 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
                     value={searchWorker}
                     onChange={(e) => setSearchWorker(e.target.value)}
                     placeholder="Cari karyawan..."
-                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500 focus:outline-hidden focus:ring-2 focus:ring-cyan-500"
+                    className="w-full min-w-0 h-10 sm:h-auto pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500 focus:outline-hidden focus:ring-2 focus:ring-cyan-500"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5 sm:col-span-2 lg:col-span-1">
-                  <div>
+                <div className="grid grid-cols-2 gap-2 min-w-0 sm:col-span-2 sm:gap-2.5 lg:col-span-1">
+                  <div className="min-w-0">
                     <label
                       htmlFor="bp-start-date"
                       className="block text-[10px] font-semibold text-slate-400 mb-1"
@@ -433,10 +435,10 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full px-2.5 py-2 text-xs rounded-xl border border-slate-700 bg-slate-900 text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-cyan-500"
+                      className="w-full min-w-0 h-10 sm:h-auto px-2 sm:px-2.5 py-2 text-xs rounded-xl border border-slate-700 bg-slate-900 text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-cyan-500"
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label
                       htmlFor="bp-end-date"
                       className="block text-[10px] font-semibold text-slate-400 mb-1"
@@ -448,12 +450,12 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className="px-2.5 py-2 text-xs w-full rounded-xl border border-slate-700 bg-slate-900 text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-cyan-500"
+                      className="w-full min-w-0 h-10 sm:h-auto px-2 sm:px-2.5 py-2 text-xs rounded-xl border border-slate-700 bg-slate-900 text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-cyan-500"
                     />
                   </div>
                 </div>
 
-                <div className="relative">
+                <div className="relative min-w-0">
                   <label htmlFor="bp-search-product" className="sr-only">
                     Cari barang atau rincian kerja
                   </label>
@@ -464,7 +466,7 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
                     value={searchProduct}
                     onChange={(e) => setSearchProduct(e.target.value)}
                     placeholder="Cari barang/rincian..."
-                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500 focus:outline-hidden focus:ring-2 focus:ring-cyan-500"
+                    className="w-full min-w-0 h-10 sm:h-auto pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500 focus:outline-hidden focus:ring-2 focus:ring-cyan-500"
                   />
                 </div>
 
@@ -472,14 +474,14 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
                   type="button"
                   onClick={resetFilters}
                   disabled={!hasActiveFilter}
-                  className="px-3 py-2 h-[34px] rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-semibold border border-slate-700 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-default inline-flex items-center justify-center gap-1.5"
+                  className="h-10 sm:h-[34px] px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-semibold border border-slate-700 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-default inline-flex items-center justify-center gap-1.5"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Reset</span>
                 </button>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 sm:pt-1 border-t border-slate-800/80">
                 <span className="text-[11px] text-slate-400 font-mono">
                   {filteredSlips.length} dari {parsedSlips.length} slip
                 </span>
@@ -488,7 +490,7 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
                     type="button"
                     onClick={selectAllFiltered}
                     disabled={filteredSlips.length === 0}
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-200 text-[11px] font-semibold border border-slate-700 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                    className="h-9 sm:h-auto px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-200 text-[11px] font-semibold border border-slate-700 cursor-pointer disabled:opacity-40 disabled:cursor-default"
                   >
                     Pilih Semua ({filteredSlips.length})
                   </button>
@@ -496,7 +498,7 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
                     type="button"
                     onClick={clearSelection}
                     disabled={selectedIds.size === 0}
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-400 text-[11px] font-semibold border border-slate-700 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                    className="h-9 sm:h-auto px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-400 text-[11px] font-semibold border border-slate-700 cursor-pointer disabled:opacity-40 disabled:cursor-default"
                   >
                     Batal Pilih
                   </button>
@@ -507,7 +509,7 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
 
           {/* Loading */}
           {isLoading && (
-            <div className="py-16 flex flex-col items-center justify-center text-slate-400 gap-2">
+            <div className="py-10 sm:py-16 flex flex-col items-center justify-center text-slate-400 gap-2">
               <RefreshCw className="w-7 h-7 animate-spin text-cyan-500" />
               <span className="text-xs font-semibold">Memuat Laporan Gaji Buku Produksi...</span>
             </div>
@@ -515,7 +517,7 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
 
           {/* Error */}
           {!isLoading && loadError && (
-            <div className="p-5 bg-rose-950/30 border border-rose-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+            <div className="p-3.5 sm:p-5 bg-rose-950/30 border border-rose-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
               <div className="flex items-start gap-2.5 min-w-0">
                 <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
                 <div className="min-w-0">
@@ -526,7 +528,7 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
               <button
                 type="button"
                 onClick={loadLaporanGaji}
-                className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl cursor-pointer transition-colors"
+                className="w-full sm:w-auto shrink-0 h-11 sm:h-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl cursor-pointer transition-colors"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Muat Ulang</span>
@@ -536,7 +538,7 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
 
           {/* Empty */}
           {!isLoading && !loadError && !hasData && (
-            <div className="py-16 flex flex-col items-center justify-center text-slate-400 gap-2 text-center px-6">
+            <div className="py-10 sm:py-16 flex flex-col items-center justify-center text-slate-400 gap-2 text-center px-6">
               <SearchX className="w-8 h-8 text-slate-600" />
               <p className="text-sm font-bold text-slate-300">Belum ada slip gaji Lunas</p>
               <p className="text-xs text-slate-500 max-w-xs">
@@ -547,13 +549,13 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
 
           {/* No result after filter */}
           {!isLoading && !loadError && hasData && filteredSlips.length === 0 && (
-            <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2 text-center px-6">
+            <div className="py-8 sm:py-12 flex flex-col items-center justify-center text-slate-400 gap-2 text-center px-6">
               <SearchX className="w-7 h-7 text-slate-600" />
               <p className="text-xs font-semibold text-slate-300">Tidak ada slip yang cocok dengan filter</p>
               <button
                 type="button"
                 onClick={resetFilters}
-                className="mt-1 text-[11px] font-bold text-cyan-400 hover:text-cyan-300 cursor-pointer"
+                className="mt-1 h-9 px-3 inline-flex items-center text-[11px] font-bold text-cyan-400 hover:text-cyan-300 cursor-pointer"
               >
                 Reset filter
               </button>
@@ -562,17 +564,17 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
 
           {/* Slips List & Live Slip Preview */}
           {!isLoading && filteredSlips.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-start">
               {/* Left Column: List of Employee Slips */}
               <div className="lg:col-span-6 space-y-2 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                    <FileSpreadsheet className="w-4 h-4 text-cyan-400" />
+                    <FileSpreadsheet className="w-4 h-4 text-cyan-400 shrink-0" />
                     <span>Daftar Slip ({selectedSlips.length} dipilih)</span>
                   </span>
                 </div>
 
-                <div className="border border-slate-800 rounded-2xl max-h-72 sm:max-h-80 overflow-y-auto divide-y divide-slate-800/80 bg-slate-950/60">
+                <div className="border border-slate-800 rounded-2xl lg:max-h-80 overflow-y-auto overscroll-contain divide-y divide-slate-800/80 bg-slate-950/60">
                   {filteredSlips.map((slip) => {
                     const isSelected = selectedIds.has(slip.id);
                     const isPreviewed = previewSlip?.id === slip.id;
@@ -590,7 +592,7 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
                             handleRowActivate(slip);
                           }
                         }}
-                        className={`p-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors ${
+                        className={`p-2.5 sm:p-3 min-h-[56px] flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors ${
                           isPreviewed
                             ? 'bg-cyan-950/40 border-l-4 border-cyan-500'
                             : 'hover:bg-slate-850/60'
@@ -641,7 +643,7 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
               <div className="lg:col-span-6 space-y-2 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                    <Eye className="w-4 h-4 text-cyan-400" />
+                    <Eye className="w-4 h-4 text-cyan-400 shrink-0" />
                     <span>Pratinjau Slip</span>
                   </span>
                   {previewSlip && (
@@ -651,13 +653,13 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
                   )}
                 </div>
 
-                <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-center">
+                <div className="p-2.5 sm:p-3 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-center">
                   {previewSlip ? (
-                    <div className="w-full bg-white rounded-xl shadow-xl overflow-hidden p-0.5">
+                    <div className="w-full max-w-sm sm:max-w-none bg-white rounded-xl shadow-xl overflow-hidden p-0.5">
                       <SlipGajiPreview item={previewSlip} />
                     </div>
                   ) : (
-                    <div className="py-16 text-slate-500 text-xs text-center px-4">
+                    <div className="py-10 sm:py-16 text-slate-500 text-xs text-center px-4">
                       Pilih slip untuk melihat preview
                     </div>
                   )}
@@ -675,19 +677,19 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-4 sm:px-6 py-4 border-t border-slate-800 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-900/60">
-          <div className="flex items-center gap-2 text-xs text-slate-400">
+        <div className="shrink-0 px-3 sm:px-6 pt-2.5 sm:pt-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] sm:pb-4 border-t border-slate-800 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 bg-slate-900/60">
+          <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400">
             <Info className="w-4 h-4 text-cyan-400 shrink-0" />
             <span>
               Slip yang diimpor langsung berukuran 8 slot per lembar A4 siap cetak.
             </span>
           </div>
 
-          <div className="w-full sm:w-auto flex items-center gap-3 sm:justify-end">
+          <div className="w-full sm:w-auto flex items-center gap-2 sm:gap-3 sm:justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-xl cursor-pointer"
+              className="h-11 sm:h-auto shrink-0 px-3.5 sm:px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-xl cursor-pointer"
             >
               Batal
             </button>
@@ -696,14 +698,14 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
               type="button"
               onClick={handleImport}
               disabled={selectedSlips.length === 0 || isImporting}
-              className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-cyan-600/20 disabled:opacity-40 cursor-pointer transition-all active:scale-95"
+              className="flex-1 sm:flex-none min-h-11 max-h-12 px-3.5 sm:px-5 py-2 flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold leading-tight rounded-xl shadow-lg shadow-cyan-600/20 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors active:scale-[0.98]"
             >
               {isImporting ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <RefreshCw className="w-4 h-4 shrink-0 animate-spin" />
               ) : (
-                <FileSpreadsheet className="w-4 h-4" />
+                <FileSpreadsheet className="w-4 h-4 shrink-0" />
               )}
-              <span>
+              <span className="min-w-0">
                 {isImporting
                   ? 'Merender slip...'
                   : `Impor ${selectedSlips.length} Slip ke Susunan Cetak A4`}
