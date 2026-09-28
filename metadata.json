@@ -1,0 +1,6 @@
+{
+  "name": "NotaGrid A4 - Susun Cetak Nota",
+  "description": "Ubah nota/faktur PDF ukuran bebas menjadi susunan siap cetak A4 8 kotak A8 lanskap dengan garis potong putus-putus presisi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
