@@ -322,6 +322,23 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
     });
   }, []);
 
+  // Penyimpanan PNG slip ke Neon adalah best-effort: kegagalan tidak boleh
+  // membatalkan import, jadi error hanya dicatat di console.
+  const saveSlipQrToNeon = async (bukuGajiId: string, dataUrl: string) => {
+    try {
+      const res = await fetch('/api/neon/slip-qr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bukuGajiId, dataUrl }),
+      });
+      if (!res.ok) {
+        console.warn(`Penyimpanan QR slip ${bukuGajiId} gagal: HTTP ${res.status}`);
+      }
+    } catch (err) {
+      console.warn(`Penyimpanan QR slip ${bukuGajiId} gagal:`, err);
+    }
+  };
+
   // Import to Grid
   const handleImport = async () => {
     if (selectedSlips.length === 0) return;
@@ -333,6 +350,7 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
       for (let index = 0; index < selectedSlips.length; index++) {
         const slip = selectedSlips[index];
         const { dataUrl, width, height } = await renderSlipGajiToPng(slip);
+        void saveSlipQrToNeon(slip.id, dataUrl);
         receiptItems.push({
           id: `bp-buku-gaji-${slip.id}`,
           sourceFileName: `Slip_Gaji_${slip.id}`,
@@ -346,6 +364,8 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
           originalHeight: height,
           rotation: 0,
           isAutoTrimmed: true,
+          source: 'buku-produksi',
+          bukuGajiId: slip.id,
         });
       }
 

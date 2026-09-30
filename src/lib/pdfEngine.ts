@@ -17,6 +17,13 @@ export type WatermarkMode = 'inherit' | 'custom' | 'disabled';
 export type QrMode = 'inherit' | 'custom' | 'disabled';
 export type QrPositionPreset = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' | 'center' | 'custom';
 
+// URL publik slip: /s/<buku_gaji_id> di-rewrite ke api/slip (vercel.json).
+// Dipakai langsung, bukan window.location.origin, supaya QR tetap benar saat
+// aplikasi dibuka dari localhost atau dari preview URL. Path /s/ wajib ikut,
+// karena rewrite hanya seep pada /s/:id.
+const SLIP_BASE_URL = 'https://edit-slip-pdf.vercel.app/s';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface ReceiptCustomConfig {
   // Skala ukuran khusus nota: 0.70 - 1.30 (1.0 = 100% normal)
   scaleMultiplier?: number;
@@ -56,6 +63,13 @@ export interface ReceiptItem {
   rotation: number; // 0, 90, 180, 270
   isAutoTrimmed: boolean;
   customConfig?: ReceiptCustomConfig;
+
+  // Asal nota. 'buku-produksi' = slip gaji yang diimpor dari Neon.
+  source?: 'upload' | 'buku-produksi';
+
+  // buku_gaji.id dari Neon. Hanya diisi untuk source 'buku-produksi', dan
+  // sengaja terpisah dari id supaya tetap benar setelah nota diduplikasi.
+  bukuGajiId?: string;
 }
 
 export type PaperOrientation = 'portrait' | 'landscape';
@@ -477,6 +491,24 @@ export function resolveReceiptSettings(
     if (conf.qrPosXPct !== undefined) qrPosXPct = conf.qrPosXPct;
     if (conf.qrPosYPct !== undefined) qrPosYPct = conf.qrPosYPct;
     if (conf.qrSizeMm !== undefined) qrSizeMm = conf.qrSizeMm;
+  }
+
+  // Slip Buku Produksi menunjuk URL individu yang-serving PDF slip
+  // (/s/<buku_gaji_id>), menggantikan qrText global maupun teks kustom
+  // operator, dan tidak bergantung pada origin browser.
+  //
+  // Rule ini hanya menulis qrText, tidak pernah menyentuh qrEnabled: tombol
+  // "Gunakan QR Code" / "Tanpa QR Code" dan qrMode 'disabled' tetap menjadi
+  // satu-satunya sakelar tampilan QR. Ditempatkan setelah branch customConfig
+  // supaya URL slip menang atas teks kustom per-nota. Receipt hasil upload
+  // tidak tersentuh.
+  if (
+    qrEnabled &&
+    item.source === 'buku-produksi' &&
+    item.bukuGajiId &&
+    UUID_PATTERN.test(item.bukuGajiId)
+  ) {
+    qrText = `${SLIP_BASE_URL}/${item.bukuGajiId}`;
   }
 
   // Automatic Mobile URL: If qrText is not explicitly set, auto-link to the mobile digital receipt viewer

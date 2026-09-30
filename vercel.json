@@ -4,8 +4,8 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "source": "/s/:id",
+      "destination": "/api/slip?id=:id"
     }
   ]
 }
