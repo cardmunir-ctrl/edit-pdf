@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { jsPDF } from 'jspdf';
-import { getSlipImage } from '../server/slipQrStorage';
+import { getSlipImage } from '../server/slipQrStorage.js';
 
 // Endpoint slip individual: GET /s/<buku_gaji_id> (Vercel route /api/slip?id=<uuid>).
 // Mengambil gambar slip dari Neon lewat helper server/slipQrStorage.ts lalu

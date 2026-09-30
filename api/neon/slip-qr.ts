@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import pg from 'pg';
-import { MAX_SLIP_IMAGE_BYTES, saveSlipImage } from '../../server/slipQrStorage';
+import { MAX_SLIP_IMAGE_BYTES, saveSlipImage } from '../../server/slipQrStorage.js';
 
 const { Pool } = pg;
 
