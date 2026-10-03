@@ -17,18 +17,106 @@ import {
   GridOptions,
   calculateGridLayout,
   resolveReceiptSettings,
+  calculateQrSideSize,
+  calculateWatermarkFontPx,
   QrPositionPreset,
 } from '../lib/pdfEngine';
 import { getQrDataUrl } from '../lib/qrCodeHelper';
+
+// Pratinjau lembar digambar pada skala tetap 2 px per mm, dipakai untuk
+// mengubah batas ukuran QR (mm) dari SettingsPanel menjadi px.
+const PREVIEW_PX_PER_MM = 2;
+
+/**
+ * Mengukur kotak nota tempat overlay watermark/QR berada. Memakai
+ * offsetWidth/offsetHeight (bukan getBoundingClientRect) supaya ukuran tidak
+ * ikut ter-scale dua kali oleh zoom pratinjau; zoom tetap ikut lewat transform
+ * CSS pada elemen induknya.
+ */
+const useHostSizePx = (ref: React.RefObject<HTMLElement | null>) => {
+  const [size, setSize] = React.useState({ w: 0, h: 0 });
+
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+
+  return size;
+};
+
+const PreviewWatermark: React.FC<{
+  text: string;
+  posXPct: number;
+  posYPct: number;
+  angleDeg: number;
+  opacity: number;
+  color: 'gray' | 'red' | 'blue' | 'green';
+  fontSizePt: number;
+}> = ({ text, posXPct, posYPct, angleDeg, opacity, color, fontSizePt }) => {
+  const hostRef = React.useRef<HTMLDivElement | null>(null);
+  const { h } = useHostSizePx(hostRef);
+
+  // Ukuran font memakai rumus yang sama dengan PDF engine, diukur terhadap
+  // tinggi slip yang benar-benar tampil di pratinjau.
+  const fontPx = calculateWatermarkFontPx(h, fontSizePt);
+
+  // Host selalu dirender (walau kosong) supaya pengukuran kotak slip selalu
+  // punya elemen yang diamati.
+  return (
+    <div
+      ref={hostRef}
+      className="absolute inset-0 pointer-events-none select-none"
+      aria-hidden="true"
+    >
+      {fontPx > 0 && (
+        <div
+          className="absolute font-bold tracking-wider uppercase flex items-center justify-center text-center whitespace-nowrap"
+          style={{
+            left: `${posXPct}%`,
+            top: `${posYPct}%`,
+            transform: `translate(-50%, -50%) rotate(${angleDeg}deg)`,
+            opacity,
+            color:
+              color === 'red'
+                ? '#dc2626'
+                : color === 'blue'
+                ? '#2563eb'
+                : color === 'green'
+                ? '#059669'
+                : '#64748b',
+            fontSize: `${fontPx}px`,
+            fontFamily: 'Helvetica, Arial, sans-serif',
+            letterSpacing: '0.12em',
+            lineHeight: 1,
+          }}
+        >
+          {text}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const PreviewQrCode: React.FC<{
   text: string;
   position: QrPositionPreset;
   sizeMm: number;
+  autoSize: boolean;
   customX?: number;
   customY?: number;
-}> = ({ text, position, sizeMm, customX, customY }) => {
+}> = ({ text, position, sizeMm, autoSize, customX, customY }) => {
   const [dataUrl, setDataUrl] = React.useState<string>('');
+  const hostRef = React.useRef<HTMLDivElement | null>(null);
+  const { w, h } = useHostSizePx(hostRef);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -40,9 +128,13 @@ const PreviewQrCode: React.FC<{
     };
   }, [text]);
 
-  if (!dataUrl) return null;
-
-  const sizePx = Math.max(16, Math.min(48, Math.round(sizeMm * 1.8)));
+  // Rumus sama dengan calculateQrPositionMm: sisi terpendek kotak slip, dengan
+  // batas atas dari slider mm (dikonversi ke px lewat skala pratinjau).
+  const shortestPx = Math.min(w, h);
+  const sizePx =
+    shortestPx > 0
+      ? calculateQrSideSize(shortestPx, (sizeMm || 14) * PREVIEW_PX_PER_MM, autoSize)
+      : 0;
   const marginPx = 4;
 
   let posStyle: React.CSSProperties = {
@@ -76,12 +168,22 @@ const PreviewQrCode: React.FC<{
     };
   }
 
+  // Host selalu dirender (walau kosong) supaya pengukuran kotak slip selalu
+  // punya elemen yang diamati.
   return (
     <div
-      className="absolute bg-white rounded-xs shadow-xs border border-slate-300 p-0.5 pointer-events-none z-20 flex items-center justify-center"
-      style={posStyle}
+      ref={hostRef}
+      className="absolute inset-0 pointer-events-none z-20"
+      aria-hidden="true"
     >
-      <img src={dataUrl} alt="QR Code" className="w-full h-full object-contain" />
+      {dataUrl && sizePx > 0 && (
+        <div
+          className="absolute bg-white rounded-xs shadow-xs border border-slate-300 p-0.5 flex items-center justify-center"
+          style={posStyle}
+        >
+          <img src={dataUrl} alt="" className="w-full h-full object-contain" />
+        </div>
+      )}
     </div>
   );
 };
@@ -161,12 +263,12 @@ export const SheetPreview: React.FC<SheetPreviewProps> = ({
           </span>
           {options.watermarkEnabled && options.watermarkText?.trim() && (
             <span className="text-[11px] text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/80 px-2 py-0.5 rounded-md font-mono font-semibold hidden md:inline-flex items-center gap-1">
-              Cap: {options.watermarkText} ({options.watermarkPosYPct ?? 45}%)
+              Cap: {options.watermarkText} ({options.watermarkPosYPct ?? 35}%)
             </span>
           )}
           {options.qrEnabled && options.qrText?.trim() && (
             <span className="text-[11px] text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800/80 px-2 py-0.5 rounded-md font-mono font-semibold hidden lg:inline-flex items-center gap-1">
-              QR: {options.qrText} ({options.qrSizeMm || 14}mm)
+              QR: {options.qrText} ({(options.qrAutoSize ?? true) ? `auto ≤ ${options.qrSizeMm || 14}mm` : `${options.qrSizeMm || 14}mm`})
             </span>
           )}
         </div>
@@ -318,29 +420,15 @@ export const SheetPreview: React.FC<SheetPreviewProps> = ({
 
                         {/* Watermark Overlay in Live Preview */}
                         {resolved.watermarkEnabled && resolved.watermarkText?.trim() && (
-                          <div
-                            className="absolute pointer-events-none select-none font-bold tracking-wider uppercase transition-all duration-75 flex items-center justify-center text-center whitespace-nowrap"
-                            style={{
-                              left: `${resolved.watermarkPosXPct ?? 50}%`,
-                              top: `${resolved.watermarkPosYPct ?? 45}%`,
-                              transform: `translate(-50%, -50%) rotate(${resolved.watermarkAngle ?? -25}deg)`,
-                              opacity: resolved.watermarkOpacity ?? 0.25,
-                              color:
-                                resolved.watermarkColor === 'red'
-                                  ? '#dc2626'
-                                  : resolved.watermarkColor === 'blue'
-                                  ? '#2563eb'
-                                  : resolved.watermarkColor === 'green'
-                                  ? '#059669'
-                                  : '#64748b',
-                              fontSize: `${Math.max(10, Math.min(24, (resolved.watermarkFontSize ?? 24) * 0.52))}px`,
-                              fontFamily: 'Helvetica, Arial, sans-serif',
-                              letterSpacing: '0.12em',
-                              lineHeight: 1,
-                            }}
-                          >
-                            {resolved.watermarkText}
-                          </div>
+                          <PreviewWatermark
+                            text={resolved.watermarkText}
+                            posXPct={resolved.watermarkPosXPct ?? 50}
+                            posYPct={resolved.watermarkPosYPct ?? 35}
+                            angleDeg={resolved.watermarkAngle ?? -25}
+                            opacity={resolved.watermarkOpacity ?? 0.25}
+                            color={resolved.watermarkColor || 'gray'}
+                            fontSizePt={resolved.watermarkFontSize ?? 24}
+                          />
                         )}
 
                         {/* QR Code Overlay in Live Preview */}
@@ -349,6 +437,7 @@ export const SheetPreview: React.FC<SheetPreviewProps> = ({
                             text={resolved.qrText.trim()}
                             position={resolved.qrPosition}
                             sizeMm={resolved.qrSizeMm}
+                            autoSize={resolved.qrAutoSize ?? true}
                             customX={resolved.qrPosXPct}
                             customY={resolved.qrPosYPct}
                           />

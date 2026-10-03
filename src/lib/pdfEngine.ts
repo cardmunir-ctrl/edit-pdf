@@ -90,7 +90,7 @@ export interface GridOptions {
   // Watermark (Tanda Air) settings
   watermarkEnabled?: boolean; // Pilihan ada watermark atau tidak
   watermarkText?: string; // Teks watermark (contoh: LUNAS)
-  watermarkPosYPct?: number; // Posisi vertikal % (default 45% agak ke atas di sisa gaji agar aman potong)
+  watermarkPosYPct?: number; // Posisi vertikal % (default 35%)
   watermarkPosXPct?: number; // Posisi horizontal % (default 50%)
   watermarkAngle?: number; // Sudut kemiringan teks dalam derajat (default -25°)
   watermarkOpacity?: number; // Transparansi 0.05 - 0.70 (default 0.25)
@@ -100,10 +100,11 @@ export interface GridOptions {
   // QR Code settings
   qrEnabled?: boolean; // Pilihan ada QR Code atau tidak
   qrText?: string; // Teks kustom / tautan URL untuk QR Code
-  qrPosition?: QrPositionPreset; // Posisi QR Code
+  qrPosition?: QrPositionPreset; // Posisi QR Code (default 'bottom-left')
   qrPosXPct?: number; // Posisi horizontal % jika kustom (0 - 100)
   qrPosYPct?: number; // Posisi vertikal % jika kustom (0 - 100)
   qrSizeMm?: number; // Ukuran QR Code dalam mm (default ~14mm)
+  qrAutoSize?: boolean; // Ukuran QR mengikuti ukuran nota (default true)
 }
 
 // A4 Base Dimensions in mm
@@ -458,7 +459,7 @@ export function resolveReceiptSettings(
   // 1. Watermark resolution
   let watermarkEnabled = globalOptions.watermarkEnabled ?? false;
   let watermarkText = globalOptions.watermarkText || 'LUNAS';
-  let watermarkPosYPct = globalOptions.watermarkPosYPct ?? 45;
+  let watermarkPosYPct = globalOptions.watermarkPosYPct ?? 35;
   let watermarkPosXPct = globalOptions.watermarkPosXPct ?? 50;
   let watermarkAngle = globalOptions.watermarkAngle ?? -25;
   let watermarkOpacity = globalOptions.watermarkOpacity ?? 0.25;
@@ -477,10 +478,11 @@ export function resolveReceiptSettings(
   // 2. QR Code resolution
   let qrEnabled = globalOptions.qrEnabled ?? false;
   let qrText = globalOptions.qrText || '';
-  let qrPosition: QrPositionPreset = globalOptions.qrPosition || 'bottom-right';
+  let qrPosition: QrPositionPreset = globalOptions.qrPosition || 'bottom-left';
   let qrPosXPct = globalOptions.qrPosXPct ?? 85;
   let qrPosYPct = globalOptions.qrPosYPct ?? 82;
   let qrSizeMm = globalOptions.qrSizeMm ?? 14;
+  let qrAutoSize = globalOptions.qrAutoSize ?? true;
 
   if (conf?.qrMode === 'disabled') {
     qrEnabled = false;
@@ -535,9 +537,32 @@ export function resolveReceiptSettings(
     qrPosXPct,
     qrPosYPct,
     qrSizeMm,
+    qrAutoSize,
 
     scaleMultiplier,
   };
+}
+
+/**
+ * Tinggi nota acuan (mm) untuk menormalkan ukuran font watermark. Angka ini
+ * hanya acuan proporsional, bukan batas layout: font 24 pt selalu mengisi
+ * 24/72 inci dari tinggi nota acuan, lalu diskalakan ke tinggi nota aktual.
+ */
+const WATERMARK_REFERENCE_HEIGHT_MM = 65;
+const MM_PER_PT = 25.4 / 72;
+
+/**
+ * Sumber ukuran watermark yang sama untuk PDF engine dan pratinjau HTML:
+ * font px = (tinggi host px) x (font pt -> mm) / tinggi acuan.
+ * Mengembalikan 0 bila salah satu nilai tidak valid supaya pemanggil
+ * bisa melewati watermark.
+ */
+export function calculateWatermarkFontPx(
+  hostHeightPx: number,
+  fontSizePt: number
+): number {
+  if (!(fontSizePt > 0) || !(hostHeightPx > 0)) return 0;
+  return Math.round((hostHeightPx * (fontSizePt * MM_PER_PT)) / WATERMARK_REFERENCE_HEIGHT_MM);
 }
 
 /**
@@ -586,10 +611,8 @@ export function createWatermarkOverlayDataUrl(
   const safeOpacity = Math.max(0.05, Math.min(0.9, opacity));
   ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${safeOpacity})`;
 
-  // Responsive font size based on note height
-  const pixelFontSize = Math.round(
-    fontSizePt * 1.333 * scale * (heightMm / 65.0)
-  );
+  // Ukuran font mengikuti rumus pt yang sama dengan pratinjau HTML
+  const pixelFontSize = Math.max(16, calculateWatermarkFontPx(canvas.height, fontSizePt));
   ctx.font = `bold ${Math.max(16, pixelFontSize)}px Helvetica, Arial, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -597,6 +620,39 @@ export function createWatermarkOverlayDataUrl(
   ctx.restore();
 
   return canvas.toDataURL('image/png');
+}
+
+/**
+ * Aturan ukuran QR Code yang dipakai bersama oleh PDF render dan pratinjau.
+ *
+ * Basisnya sisi terpendek dari area gambar slip, bukan angka mm tetap:
+ * - autoSize = true  -> target = sisi terpendek x QR_AUTO_SIZE_RATIO
+ * - autoSize = false -> target = maxSize (nilai mm/px dari slider)
+ *
+ * Pembatas menjaga QR tetap proporsional: tidak lebih kecil dari
+ * QR_MIN_SIZE_RATIO sisi terpendek (batas bawah agar QR tidak terlalu kecil),
+ * dan tidak lebih besar dari maxSize maupun QR_MAX_COVER_RATIO sisi terpendek
+ * (batas atas agar QR tidak menutupi isi slip).
+ *
+ * Bersifat unit-agnostic: maxSize dan hasil fungsi memakai satuan yang sama
+ * dengan shortestSide, sehingga dipanggil dengan mm saat render PDF maupun
+ * dengan px saat pratinjau HTML.
+ */
+export const QR_AUTO_SIZE_RATIO = 0.22;
+export const QR_MIN_SIZE_RATIO = 0.12;
+export const QR_MAX_COVER_RATIO = 0.45;
+
+export function calculateQrSideSize(
+  shortestSide: number,
+  maxSize: number,
+  autoSize: boolean = true
+): number {
+  const side = Math.max(1, shortestSide);
+  const minAllowed = side * QR_MIN_SIZE_RATIO;
+  const ceiling = Math.min(Math.max(maxSize, minAllowed), side * QR_MAX_COVER_RATIO);
+  const floor = Math.min(minAllowed, ceiling);
+  const target = autoSize ? side * QR_AUTO_SIZE_RATIO : Math.max(maxSize, minAllowed);
+  return Math.max(floor, Math.min(target, ceiling));
 }
 
 /**
@@ -610,9 +666,14 @@ export function calculateQrPositionMm(
   drawH: number,
   sizeMm: number,
   customXPct: number = 85,
-  customYPct: number = 80
+  customYPct: number = 80,
+  autoSize: boolean = true
 ): { x: number; y: number; size: number } {
-  const safeSize = Math.max(7, Math.min(sizeMm, drawW * 0.45, drawH * 0.45));
+  const safeSize = calculateQrSideSize(
+    Math.min(drawW, drawH),
+    typeof sizeMm === 'number' ? sizeMm : 14,
+    autoSize
+  );
   const marginMm = 2.0;
 
   let x = drawX + drawW - safeSize - marginMm;
@@ -753,7 +814,7 @@ export async function buildA4GridPdf(
               drawW,
               drawH,
               resolved.watermarkPosXPct ?? 50,
-              resolved.watermarkPosYPct ?? 45,
+              resolved.watermarkPosYPct ?? 35,
               resolved.watermarkAngle ?? -25,
               resolved.watermarkOpacity ?? 0.25,
               resolved.watermarkColor || 'gray',
@@ -790,7 +851,8 @@ export async function buildA4GridPdf(
                 drawH,
                 resolved.qrSizeMm,
                 resolved.qrPosXPct,
-                resolved.qrPosYPct
+                resolved.qrPosYPct,
+                resolved.qrAutoSize
               );
 
               // Small white backing for high contrast readability
@@ -942,7 +1004,7 @@ export async function downloadSingleReceiptPdf(
         pdfWidthMm,
         pdfHeightMm,
         50,
-        receipt.watermarkPosYPct ?? 45,
+        receipt.watermarkPosYPct ?? 35,
         -25,
         0.28,
         receipt.watermarkColor || 'gray',

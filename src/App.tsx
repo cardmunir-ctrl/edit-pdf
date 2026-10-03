@@ -61,18 +61,19 @@ export default function App() {
     customBottomCropPct: 0,
     watermarkEnabled: false,
     watermarkText: 'LUNAS',
-    watermarkPosYPct: 45, // Agak ke atas di area sisa gaji agar tidak kepotong saat print
+    watermarkPosYPct: 35, // Default posisi vertikal watermark
     watermarkPosXPct: 50,
     watermarkAngle: -25,
     watermarkOpacity: 0.25,
-    watermarkFontSize: 24,
+watermarkFontSize: 24,
     watermarkColor: 'gray',
     qrEnabled: false,
     qrText: '',
-    qrPosition: 'bottom-right',
+    qrPosition: 'bottom-left',
     qrPosXPct: 85,
     qrPosYPct: 82,
     qrSizeMm: 14,
+    qrAutoSize: true,
   });
 
   // UI state
@@ -83,6 +84,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasAppliedPrintDefaultsRef = useRef(false);
 
   // File Upload Handler
   const handleFiles = async (files: FileList | null) => {
@@ -323,6 +325,21 @@ export default function App() {
       });
     } catch {}
   };
+
+  // Terapkan default cetak begitu ada nota pertama (upload, drag & drop, atau
+  // import Buku Produksi). Sekali saja lewat ref, supaya nota berikutnya tidak
+  // mengembalikan setting yang sudah diubah user, dan customConfig per nota
+  // tidak tersentuh karena default ini hanya ditulis ke options global.
+  React.useEffect(() => {
+    if (receipts.length === 0 || hasAppliedPrintDefaultsRef.current) return;
+    hasAppliedPrintDefaultsRef.current = true;
+    setOptions((prev) => ({
+      ...prev,
+      watermarkFontSize: 24,
+      qrPosition: 'bottom-left',
+      qrAutoSize: true,
+    }));
+  }, [receipts.length]);
 
   // Generate & Download PDF
   const handleDownloadPdf = async () => {

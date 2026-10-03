@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Check,
@@ -21,6 +21,9 @@ import {
   QrPositionPreset,
   processReceiptImage,
   resolveReceiptSettings,
+  calculateQrSideSize,
+  calculateWatermarkFontPx,
+  QR_MAX_COVER_RATIO,
 } from '../lib/pdfEngine';
 import { getQrDataUrl } from '../lib/qrCodeHelper';
 
@@ -56,7 +59,7 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
     item.customConfig?.watermarkText ?? globalOptions.watermarkText ?? 'LUNAS'
   );
   const [watermarkPosYPct, setWatermarkPosYPct] = useState<number>(
-    item.customConfig?.watermarkPosYPct ?? globalOptions.watermarkPosYPct ?? 45
+    item.customConfig?.watermarkPosYPct ?? globalOptions.watermarkPosYPct ?? 35
   );
   const [watermarkColor, setWatermarkColor] = useState<'gray' | 'red' | 'blue' | 'green'>(
     item.customConfig?.watermarkColor ?? globalOptions.watermarkColor ?? 'gray'
@@ -70,10 +73,13 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
     item.customConfig?.qrText ?? globalOptions.qrText ?? ''
   );
   const [qrPosition, setQrPosition] = useState<QrPositionPreset>(
-    item.customConfig?.qrPosition ?? globalOptions.qrPosition ?? 'bottom-right'
+    item.customConfig?.qrPosition ?? globalOptions.qrPosition ?? 'bottom-left'
   );
   const [qrSizeMm, setQrSizeMm] = useState<number>(
     item.customConfig?.qrSizeMm ?? globalOptions.qrSizeMm ?? 14
+  );
+  const [qrAutoSize, setQrAutoSize] = useState<boolean>(
+    globalOptions.qrAutoSize ?? true
   );
 
   // Apply to all pages from same file checkbox
@@ -91,6 +97,25 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
 
   // QR code preview data url
   const [previewQrDataUrl, setPreviewQrDataUrl] = useState<string>('');
+
+  // Ukuran kotak nota di pratinjau, dipakai agar ukuran watermark dan QR
+  // proporsional terhadap slip (sumber aturan sama dengan PDF engine).
+  const previewBoxRef = useRef<HTMLDivElement | null>(null);
+  const [previewBoxPx, setPreviewBoxPx] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = previewBoxRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      setPreviewBoxPx((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [previewDataUrl, scaleMultiplier]);
 
   // Re-render thumbnail preview when bottom crop or rotation changes
   useEffect(() => {
@@ -145,8 +170,9 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
       ? true
       : globalOptions.watermarkEnabled ?? false;
   const resolvedWmText = watermarkMode === 'custom' ? watermarkText : globalOptions.watermarkText || 'LUNAS';
-  const resolvedWmPosY = watermarkMode === 'custom' ? watermarkPosYPct : globalOptions.watermarkPosYPct ?? 45;
+  const resolvedWmPosY = watermarkMode === 'custom' ? watermarkPosYPct : globalOptions.watermarkPosYPct ?? 35;
   const resolvedWmColor = watermarkMode === 'custom' ? watermarkColor : globalOptions.watermarkColor || 'gray';
+const resolvedWmFontPx = calculateWatermarkFontPx(previewBoxPx.h, globalOptions.watermarkFontSize ?? 24);
 
   const handleSave = async () => {
     // 1. Reprocess image if crop or rotation changed
@@ -192,17 +218,26 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
     setRotation(globalOptions.globalRotation ?? 0);
     setWatermarkMode('inherit');
     setWatermarkText(globalOptions.watermarkText ?? 'LUNAS');
-    setWatermarkPosYPct(globalOptions.watermarkPosYPct ?? 45);
+    setWatermarkPosYPct(globalOptions.watermarkPosYPct ?? 35);
     setWatermarkColor(globalOptions.watermarkColor ?? 'gray');
     setQrMode('inherit');
     setQrText(globalOptions.qrText ?? '');
-    setQrPosition(globalOptions.qrPosition ?? 'bottom-right');
+    setQrPosition(globalOptions.qrPosition ?? 'bottom-left');
     setQrSizeMm(globalOptions.qrSizeMm ?? 14);
+    setQrAutoSize(globalOptions.qrAutoSize ?? true);
   };
 
-  // QR preview position helper
-  const getQrPreviewStyle = (pos: QrPositionPreset, sizeMm: number) => {
-    const sizePx = Math.max(22, Math.min(50, Math.round(sizeMm * 1.8)));
+  // QR preview position helper. Ukuran memakai rumus yang sama dengan PDF engine
+  // (calculateQrSideSize): sisi terpendek kotak nota, bukan px tetap per mm.
+  // Pratinjau modal tidak punya kalibrasi mm, jadi nilai slider mm dikonversi
+  // ke skala px lewat batas atas 14 mm pada sisi terpendek.
+  const getQrPreviewStyle = (pos: QrPositionPreset, sizeMm: number, autoSize: boolean) => {
+    const shortestPx = Math.min(previewBoxPx.w, previewBoxPx.h);
+    const pxPerMm = shortestPx > 0 ? (shortestPx * QR_MAX_COVER_RATIO) / 14 : 0;
+    const sizePx =
+      shortestPx > 0
+        ? calculateQrSideSize(shortestPx, sizeMm * pxPerMm, autoSize)
+        : 0;
     const m = 6;
     switch (pos) {
       case 'top-left':
@@ -268,6 +303,7 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
             {/* Receipt Frame */}
             <div className="w-full h-64 bg-slate-200/60 dark:bg-slate-900/80 rounded-lg p-2 flex items-center justify-center relative overflow-hidden border border-slate-300 dark:border-slate-800 shadow-inner">
               <div
+                ref={previewBoxRef}
                 className="relative bg-white shadow-md rounded-xs overflow-hidden flex items-center justify-center transition-all duration-150"
                 style={{
                   aspectRatio: `${item.width} / ${item.height}`,
@@ -284,9 +320,9 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
                 />
 
                 {/* Watermark overlay */}
-                {resolvedWmEnabled && resolvedWmText.trim() && (
+                {resolvedWmEnabled && resolvedWmText.trim() && resolvedWmFontPx > 0 && (
                   <div
-                    className="absolute pointer-events-none select-none font-bold tracking-wider uppercase transition-all duration-75 flex items-center justify-center text-center whitespace-nowrap"
+                    className="absolute pointer-events-none select-none font-bold tracking-wider uppercase flex items-center justify-center text-center whitespace-nowrap"
                     style={{
                       left: '50%',
                       top: `${resolvedWmPosY}%`,
@@ -300,7 +336,7 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
                           : resolvedWmColor === 'green'
                           ? '#059669'
                           : '#64748b',
-                      fontSize: '18px',
+                      fontSize: `${resolvedWmFontPx}px`,
                       fontFamily: 'Helvetica, Arial, sans-serif',
                       letterSpacing: '0.12em',
                       lineHeight: 1,
@@ -314,9 +350,9 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
                 {resolvedQrEnabled && previewQrDataUrl && (
                   <div
                     className="absolute bg-white rounded-xs shadow-xs border border-slate-300 p-0.5 pointer-events-none z-10 flex items-center justify-center"
-                    style={getQrPreviewStyle(qrPosition, qrSizeMm)}
+                    style={getQrPreviewStyle(qrPosition, qrSizeMm, qrAutoSize)}
                   >
-                    <img src={previewQrDataUrl} alt="QR" className="w-full h-full object-contain" />
+                    <img src={previewQrDataUrl} alt="" className="w-full h-full object-contain" />
                   </div>
                 )}
               </div>
@@ -708,8 +744,8 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
                       </label>
                       <div className="grid grid-cols-5 gap-1">
                         {[
-                          { id: 'bottom-right', label: '↘ Kanan Bwh' },
                           { id: 'bottom-left', label: '↙ Kiri Bwh' },
+                          { id: 'bottom-right', label: '↘ Kanan Bwh' },
                           { id: 'top-right', label: '↗ Kanan Atas' },
                           { id: 'top-left', label: '↖ Kiri Atas' },
                           { id: 'center', label: '🎯 Tengah' },
@@ -733,11 +769,30 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="font-semibold text-slate-800 dark:text-slate-200 text-[11px]">
-                          Ukuran QR Code:
+                          {qrAutoSize ? 'Batas Maks QR:' : 'Ukuran QR Code:'}
                         </label>
                         <span className="font-mono text-cyan-700 dark:text-cyan-300 font-bold">
                           {qrSizeMm} mm
                         </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 mb-1.5">
+                        {[
+                          { id: true, label: 'Ikuti Nota (Auto)' },
+                          { id: false, label: 'Manual' },
+                        ].map((m) => (
+                          <button
+                            key={String(m.id)}
+                            type="button"
+                            onClick={() => setQrAutoSize(m.id)}
+                            className={`py-1 text-[10px] font-semibold rounded border cursor-pointer ${
+                              qrAutoSize === m.id
+                                ? 'bg-cyan-600 text-white border-cyan-600 shadow-2xs'
+                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
                       </div>
                       <input
                         type="range"

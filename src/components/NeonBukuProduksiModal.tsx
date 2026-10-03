@@ -54,6 +54,20 @@ const SLIP_COLOR_PROPERTIES = [
   'stroke',
 ];
 
+// Instrumentasi import Buku Produksi. Hanya menulis ke console, tidak
+// mengubah alur render: scale html2canvas, kualitas PNG, dan urutan sequential
+// tetap sama. Hapus blok ini beserta pemanggilnya bila profiling selesai.
+const IMPORT_PERF_LABEL = '[Import Performance]';
+
+const perfNow = (): number =>
+  typeof performance !== 'undefined' ? performance.now() : Date.now();
+
+const formatMs = (ms: number): string => Math.round(ms).toLocaleString('en-US');
+
+const logImportPerf = (message: string): void => {
+  console.log(`${IMPORT_PERF_LABEL} ${message}`);
+};
+
 const formatTanggalPendek = (value: string) => {
   if (!value) return '-';
   const date = new Date(value);
@@ -287,23 +301,62 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
         return;
       }
       try {
+        const startedAt = perfNow();
+
         if (document.fonts?.ready) await document.fonts.ready;
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         if (cancelled || !offscreenHostRef.current) return;
 
+        const afterPaintWaitAt = perfNow();
+
         const html2canvas = (await import('html2canvas')).default;
+        const afterImportAt = perfNow();
+
+        // onclone dibungkus hanya untuk mengukur normalizeModernColors. Badannya
+        // diteruskan apa adanya ke helper asli, jadi hasil dan urutan render
+        // tidak berubah. onclone dipanggil html2canvas di dalam await di bawah,
+        // sehingga totalnya sudah lengkap saat AfterCanvasAt diambil.
+        const normalizeCallsRef = { count: 0, totalMs: 0 };
+        const oncloneTimed = (clonedDoc: Document) => {
+          const cloneStartedAt = perfNow();
+          normalizeModernColors(clonedDoc);
+          normalizeCallsRef.totalMs += perfNow() - cloneStartedAt;
+          normalizeCallsRef.count += 1;
+        };
+
         const canvas = await html2canvas(offscreenHostRef.current, {
           scale: 2.5,
           useCORS: true,
           logging: false,
           imageTimeout: 0,
           backgroundColor: '#ffffff',
-          onclone: normalizeModernColors,
+          onclone: oncloneTimed,
         });
+        const afterCanvasAt = perfNow();
+
+        const slipLabel = offscreenSlip.worker_name || offscreenSlip.id;
+        logImportPerf(
+          `Slip "${slipLabel}": normalizeColors: ${formatMs(normalizeCallsRef.totalMs)} ms` +
+            ` (${normalizeCallsRef.count}× onclone)`
+        );
+
         if (cancelled) return;
 
+        const dataUrl = canvas.toDataURL('image/png');
+        const afterEncodeAt = perfNow();
+
+        logImportPerf(
+          `slip "${slipLabel}": prep ${formatMs(afterPaintWaitAt - startedAt)} ms` +
+            `, import(html2canvas) ${formatMs(afterImportAt - afterPaintWaitAt)} ms` +
+            `, render ${formatMs(afterCanvasAt - afterImportAt)} ms` +
+            ` (normalize ${formatMs(normalizeCallsRef.totalMs)} ms)` +
+            `, encode PNG ${formatMs(afterEncodeAt - afterCanvasAt)} ms` +
+            `, canvas ${canvas.width}x${canvas.height}` +
+            `, dataUrl ${formatMs(dataUrl.length / 1024)} kB`
+        );
+
         pending?.resolve({
-          dataUrl: canvas.toDataURL('image/png'),
+          dataUrl,
           width: canvas.width,
           height: canvas.height,
         });
@@ -325,12 +378,26 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
   // Penyimpanan PNG slip ke Neon adalah best-effort: kegagalan tidak boleh
   // membatalkan import, jadi error hanya dicatat di console.
   const saveSlipQrToNeon = async (bukuGajiId: string, dataUrl: string) => {
+    const startedAt = perfNow();
     try {
+      // Stringify di luar argumen fetch agar bisa diukur terpisah. Nilai yang
+      // dikirim dan urutan evaluasinya tetap sama seperti sebelumnya.
+      const body = JSON.stringify({ bukuGajiId, dataUrl });
+      const afterStringifyAt = perfNow();
+
       const res = await fetch('/api/neon/slip-qr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bukuGajiId, dataUrl }),
+        body,
       });
+      const afterUploadAt = perfNow();
+
+      logImportPerf(
+        `slip ${bukuGajiId} simpan QR (fire-and-forget): JSON.stringify ${formatMs(afterStringifyAt - startedAt)} ms` +
+          `, upload ${formatMs(afterUploadAt - afterStringifyAt)} ms` +
+          `, HTTP ${res.status}`
+      );
+
       if (!res.ok) {
         console.warn(`Penyimpanan QR slip ${bukuGajiId} gagal: HTTP ${res.status}`);
       }
@@ -345,11 +412,19 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
 
     setIsImporting(true);
     setImportError(null);
+    const importStartedAt = perfNow();
     try {
       const receiptItems: ReceiptItem[] = [];
       for (let index = 0; index < selectedSlips.length; index++) {
         const slip = selectedSlips[index];
+        const renderStartedAt = perfNow();
         const { dataUrl, width, height } = await renderSlipGajiToPng(slip);
+        const renderEndedAt = perfNow();
+
+        logImportPerf(
+          `Slip ${index + 1}/${selectedSlips.length} render: ${formatMs(renderEndedAt - renderStartedAt)} ms`
+        );
+
         void saveSlipQrToNeon(slip.id, dataUrl);
         receiptItems.push({
           id: `bp-buku-gaji-${slip.id}`,
@@ -368,6 +443,13 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
           bukuGajiId: slip.id,
         });
       }
+
+      const importEndedAt = perfNow();
+      logImportPerf(
+        `Total import: ${formatMs(importEndedAt - importStartedAt)} ms` +
+          ` untuk ${selectedSlips.length} slip` +
+          ` (render avg ${formatMs((importEndedAt - importStartedAt) / selectedSlips.length)} ms/slip)`
+      );
 
       onImportReceipts(receiptItems);
       onClose();
