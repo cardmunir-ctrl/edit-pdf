@@ -48,11 +48,7 @@ export const SlipGajiBukuProduksiTemplate: React.FC<SlipGajiBukuProduksiTemplate
 
   return (
     <div id="receipt-template-static" className="bg-white p-10 w-[600px] text-slate-900 font-sans">
-      <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-6">
-        <div>
-          <h2 className="text-3xl font-black tracking-tighter uppercase leading-none text-slate-900">E-SLIP GAJI</h2>
-          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Sistem Catatan Produksi</p>
-        </div>
+      <div className="flex justify-end items-start border-b-2 border-slate-900 pb-4 mb-6">
         <div className="text-right">
           <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">ID Transaksi</div>
           <div className="text-[10px] font-black bg-slate-100 px-2 py-1 rounded">#{item.id.substring(0, 8).toUpperCase()}</div>
