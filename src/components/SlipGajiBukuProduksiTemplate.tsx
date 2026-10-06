@@ -46,6 +46,15 @@ interface SlipGajiBukuProduksiTemplateProps {
 export const SlipGajiBukuProduksiTemplate: React.FC<SlipGajiBukuProduksiTemplateProps> = ({ item }) => {
   const details = item.items_detail && Array.isArray(item.items_detail) ? item.items_detail : [];
 
+  // Pemetaan mengikuti cara Buku Produksi menulis baris buku_gaji:
+  // gaji_pokok = gaji produksi, sisa_gaji = sisa sebelumnya yang dicairkan
+  // (+), potongan = kasbon yang dibayar (−), total = uang tunai yang dibayarkan.
+  const gajiPokok = item.gaji_pokok || sumSubtotal(details);
+  const sisaGaji = item.sisa_gaji || 0;
+  const potongan = item.potongan || 0;
+  const dibayar = item.total || 0;
+  const sisaGajiBelumDibayar = Math.max(0, gajiPokok + sisaGaji - potongan - dibayar);
+
   return (
     <div id="receipt-template-static" className="bg-white p-10 w-[600px] text-slate-900 font-sans">
       <div className="flex justify-end items-start border-b-2 border-slate-900 pb-4 mb-6">
@@ -89,27 +98,33 @@ export const SlipGajiBukuProduksiTemplate: React.FC<SlipGajiBukuProduksiTemplate
       <div className="flex justify-end pt-2">
         <div className="w-1/2 space-y-2">
           <div className="flex justify-between text-[9px] font-bold text-slate-600 border-t border-slate-100 pt-2">
-            <span>Sisa Gaji Produksi</span>
-            <span>Rp {sumSubtotal(details).toLocaleString()}</span>
+            <span className="uppercase tracking-wider">Total Gaji</span>
+            <span>Rp {gajiPokok.toLocaleString()}</span>
           </div>
-          {item.sisa_gaji > 0 && (
+          {sisaGaji > 0 && (
             <div className="flex justify-between text-[9px] font-bold text-teal-700 bg-teal-50/50 px-2 py-1 rounded">
               <span>Tambah Sisa Gaji</span>
-              <span>+ Rp {item.sisa_gaji.toLocaleString()}</span>
+              <span>+ Rp {sisaGaji.toLocaleString()}</span>
             </div>
           )}
-          {item.potongan > 0 && (
+          {potongan > 0 && (
             <div className="flex justify-between text-[9px] font-bold text-rose-500 bg-rose-50/50 px-2 py-1 rounded">
               <span>Potongan Kasbon</span>
-              <span>- Rp {item.potongan.toLocaleString()}</span>
+              <span>- Rp {potongan.toLocaleString()}</span>
             </div>
           )}
-          <div className="border-t-2 border-slate-900 pt-3 flex justify-between items-center font-black">
-            <div className="flex flex-col">
-              <span className="text-[8px] uppercase tracking-widest text-slate-400">Total Gaji Bersih</span>
+          <div className="border-t-2 border-slate-900 pt-3">
+            <div className="flex justify-between items-center font-black px-2.5 py-2">
+              <span className="text-[8px] uppercase tracking-widest text-emerald-700">Dibayar</span>
+              <span className="text-xl text-emerald-800">Rp {dibayar.toLocaleString()}</span>
             </div>
-            <span className="text-xl text-slate-900">Rp {(item.total || 0).toLocaleString()}</span>
           </div>
+          {sisaGajiBelumDibayar > 0 && (
+            <div className="flex justify-between text-[9px] font-bold text-amber-700 px-2 py-1">
+              <span>SISA GAJI</span>
+              <span>Rp {sisaGajiBelumDibayar.toLocaleString()}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
