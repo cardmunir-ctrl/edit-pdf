@@ -236,7 +236,7 @@ export const MobileReceiptView: React.FC<MobileReceiptViewProps> = ({
                     className="absolute pointer-events-none select-none font-bold tracking-wider uppercase flex items-center justify-center text-center whitespace-nowrap"
                     style={{
                       left: '50%',
-                      top: `${receipt.watermarkPosYPct ?? 35}%`,
+                      top: `${receipt.watermarkPosYPct ?? 40}%`,
                       transform: 'translate(-50%, -50%) rotate(-25deg)',
                       opacity: 0.26,
                       color:

@@ -90,11 +90,11 @@ export interface GridOptions {
   // Watermark (Tanda Air) settings
   watermarkEnabled?: boolean; // Pilihan ada watermark atau tidak
   watermarkText?: string; // Teks watermark (contoh: LUNAS)
-  watermarkPosYPct?: number; // Posisi vertikal % (default 35%)
+  watermarkPosYPct?: number; // Posisi vertikal % (default 40%)
   watermarkPosXPct?: number; // Posisi horizontal % (default 50%)
   watermarkAngle?: number; // Sudut kemiringan teks dalam derajat (default -25°)
   watermarkOpacity?: number; // Transparansi 0.05 - 0.70 (default 0.25)
-  watermarkFontSize?: number; // Ukuran font pt (default 24)
+  watermarkFontSize?: number; // Ukuran font pt (default 16)
   watermarkColor?: 'gray' | 'red' | 'blue' | 'green'; // Pilihan warna stempel/watermark
 
   // QR Code settings
@@ -459,11 +459,11 @@ export function resolveReceiptSettings(
   // 1. Watermark resolution
   let watermarkEnabled = globalOptions.watermarkEnabled ?? false;
   let watermarkText = globalOptions.watermarkText || 'LUNAS';
-  let watermarkPosYPct = globalOptions.watermarkPosYPct ?? 35;
+  let watermarkPosYPct = globalOptions.watermarkPosYPct ?? 40;
   let watermarkPosXPct = globalOptions.watermarkPosXPct ?? 50;
   let watermarkAngle = globalOptions.watermarkAngle ?? -25;
   let watermarkOpacity = globalOptions.watermarkOpacity ?? 0.25;
-  let watermarkFontSize = globalOptions.watermarkFontSize ?? 24;
+  let watermarkFontSize = globalOptions.watermarkFontSize ?? 16;
   let watermarkColor = globalOptions.watermarkColor || 'gray';
 
   if (conf?.watermarkMode === 'disabled') {
@@ -575,11 +575,11 @@ export function createWatermarkOverlayDataUrl(
   widthMm: number,
   heightMm: number,
   posXPct: number = 50,
-  posYPct: number = 45,
+  posYPct: number = 40,
   angleDeg: number = -25,
   opacity: number = 0.25,
   color: 'gray' | 'red' | 'blue' | 'green' = 'gray',
-  fontSizePt: number = 24
+  fontSizePt: number = 16
 ): string {
   if (typeof document === 'undefined') return '';
 
@@ -626,8 +626,16 @@ export function createWatermarkOverlayDataUrl(
  * Aturan ukuran QR Code yang dipakai bersama oleh PDF render dan pratinjau.
  *
  * Basisnya sisi terpendek dari area gambar slip, bukan angka mm tetap:
- * - autoSize = true  -> target = sisi terpendek x QR_AUTO_SIZE_RATIO
+ * - autoSize = true  -> target = sisi terpendek x QR_AUTO_SIZE_RATIO, dengan
+ *                       nilai mm sebagai ukuran dasar (tidak boleh dikecilkan)
  * - autoSize = false -> target = maxSize (nilai mm/px dari slider)
+ *
+ * Nilai mm di SettingsPanel adalah ukuran yang sudah terbukti bisa dipindai
+ * dari hasil cetak, jadi mode auto hanya boleh MEMBESARkan QR pada slip besar,
+ * tidak pernah mengecilkannya di bawah nilai itu. Tanpa lantai ini QR slip gaji
+ * Buku Produksi (slip lebih tinggi dari lebar, sisi terpendek = lebar ~57 mm)
+ * menyusut dari 14 mm ke ~12,5 mm dan modulnya turun ke ~0,32 mm sehingga kamera
+ * smartphone gagal memindai QR pada PDF hasil simpan.
  *
  * Pembatas menjaga QR tetap proporsional: tidak lebih kecil dari
  * QR_MIN_SIZE_RATIO sisi terpendek (batas bawah agar QR tidak terlalu kecil),
@@ -651,7 +659,9 @@ export function calculateQrSideSize(
   const minAllowed = side * QR_MIN_SIZE_RATIO;
   const ceiling = Math.min(Math.max(maxSize, minAllowed), side * QR_MAX_COVER_RATIO);
   const floor = Math.min(minAllowed, ceiling);
-  const target = autoSize ? side * QR_AUTO_SIZE_RATIO : Math.max(maxSize, minAllowed);
+  // Ukuran dasar: nilai mm yang dipilih user, sama seperti mode manual.
+  const base = Math.max(maxSize, minAllowed);
+  const target = autoSize ? Math.max(base, side * QR_AUTO_SIZE_RATIO) : base;
   return Math.max(floor, Math.min(target, ceiling));
 }
 
@@ -814,11 +824,11 @@ export async function buildA4GridPdf(
               drawW,
               drawH,
               resolved.watermarkPosXPct ?? 50,
-              resolved.watermarkPosYPct ?? 35,
+              resolved.watermarkPosYPct ?? 40,
               resolved.watermarkAngle ?? -25,
               resolved.watermarkOpacity ?? 0.25,
               resolved.watermarkColor || 'gray',
-              resolved.watermarkFontSize ?? 24
+              resolved.watermarkFontSize ?? 16
             );
 
             if (wmPng) {
@@ -1004,7 +1014,7 @@ export async function downloadSingleReceiptPdf(
         pdfWidthMm,
         pdfHeightMm,
         50,
-        receipt.watermarkPosYPct ?? 35,
+        receipt.watermarkPosYPct ?? 40,
         -25,
         0.28,
         receipt.watermarkColor || 'gray',

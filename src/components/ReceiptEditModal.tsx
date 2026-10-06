@@ -59,7 +59,7 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
     item.customConfig?.watermarkText ?? globalOptions.watermarkText ?? 'LUNAS'
   );
   const [watermarkPosYPct, setWatermarkPosYPct] = useState<number>(
-    item.customConfig?.watermarkPosYPct ?? globalOptions.watermarkPosYPct ?? 35
+    item.customConfig?.watermarkPosYPct ?? globalOptions.watermarkPosYPct ?? 40
   );
   const [watermarkColor, setWatermarkColor] = useState<'gray' | 'red' | 'blue' | 'green'>(
     item.customConfig?.watermarkColor ?? globalOptions.watermarkColor ?? 'gray'
@@ -170,9 +170,9 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
       ? true
       : globalOptions.watermarkEnabled ?? false;
   const resolvedWmText = watermarkMode === 'custom' ? watermarkText : globalOptions.watermarkText || 'LUNAS';
-  const resolvedWmPosY = watermarkMode === 'custom' ? watermarkPosYPct : globalOptions.watermarkPosYPct ?? 35;
+  const resolvedWmPosY = watermarkMode === 'custom' ? watermarkPosYPct : globalOptions.watermarkPosYPct ?? 40;
   const resolvedWmColor = watermarkMode === 'custom' ? watermarkColor : globalOptions.watermarkColor || 'gray';
-const resolvedWmFontPx = calculateWatermarkFontPx(previewBoxPx.h, globalOptions.watermarkFontSize ?? 24);
+const resolvedWmFontPx = calculateWatermarkFontPx(previewBoxPx.h, globalOptions.watermarkFontSize ?? 16);
 
   const handleSave = async () => {
     // 1. Reprocess image if crop or rotation changed
@@ -218,7 +218,7 @@ const resolvedWmFontPx = calculateWatermarkFontPx(previewBoxPx.h, globalOptions.
     setRotation(globalOptions.globalRotation ?? 0);
     setWatermarkMode('inherit');
     setWatermarkText(globalOptions.watermarkText ?? 'LUNAS');
-    setWatermarkPosYPct(globalOptions.watermarkPosYPct ?? 35);
+    setWatermarkPosYPct(globalOptions.watermarkPosYPct ?? 40);
     setWatermarkColor(globalOptions.watermarkColor ?? 'gray');
     setQrMode('inherit');
     setQrText(globalOptions.qrText ?? '');
@@ -769,7 +769,7 @@ const resolvedWmFontPx = calculateWatermarkFontPx(previewBoxPx.h, globalOptions.
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="font-semibold text-slate-800 dark:text-slate-200 text-[11px]">
-                          {qrAutoSize ? 'Batas Maks QR:' : 'Ukuran QR Code:'}
+                          {qrAutoSize ? 'Ukuran Min. QR:' : 'Ukuran QR Code:'}
                         </label>
                         <span className="font-mono text-cyan-700 dark:text-cyan-300 font-bold">
                           {qrSizeMm} mm

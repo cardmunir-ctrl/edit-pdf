@@ -36,7 +36,7 @@ export async function syncReceiptToServer(
     rotation: item.rotation,
     watermarkText: watermarkText || (item.customConfig?.watermarkMode !== 'disabled' ? item.customConfig?.watermarkText : undefined),
     watermarkColor: watermarkColor || (item.customConfig?.watermarkColor as any),
-    watermarkPosYPct: watermarkPosYPct ?? item.customConfig?.watermarkPosYPct ?? 35,
+    watermarkPosYPct: watermarkPosYPct ?? item.customConfig?.watermarkPosYPct ?? 40,
     date: new Date().toLocaleDateString('id-ID', {
       day: 'numeric',
       month: 'long',

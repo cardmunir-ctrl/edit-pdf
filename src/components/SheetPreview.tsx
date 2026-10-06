@@ -263,12 +263,12 @@ export const SheetPreview: React.FC<SheetPreviewProps> = ({
           </span>
           {options.watermarkEnabled && options.watermarkText?.trim() && (
             <span className="text-[11px] text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/80 px-2 py-0.5 rounded-md font-mono font-semibold hidden md:inline-flex items-center gap-1">
-              Cap: {options.watermarkText} ({options.watermarkPosYPct ?? 35}%)
+              Cap: {options.watermarkText} ({options.watermarkPosYPct ?? 40}%)
             </span>
           )}
           {options.qrEnabled && options.qrText?.trim() && (
             <span className="text-[11px] text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800/80 px-2 py-0.5 rounded-md font-mono font-semibold hidden lg:inline-flex items-center gap-1">
-              QR: {options.qrText} ({(options.qrAutoSize ?? true) ? `auto ≤ ${options.qrSizeMm || 14}mm` : `${options.qrSizeMm || 14}mm`})
+              QR: {options.qrText} ({(options.qrAutoSize ?? true) ? `auto ≥ ${options.qrSizeMm || 14}mm` : `${options.qrSizeMm || 14}mm`})
             </span>
           )}
         </div>
@@ -423,11 +423,11 @@ export const SheetPreview: React.FC<SheetPreviewProps> = ({
                           <PreviewWatermark
                             text={resolved.watermarkText}
                             posXPct={resolved.watermarkPosXPct ?? 50}
-                            posYPct={resolved.watermarkPosYPct ?? 35}
+                            posYPct={resolved.watermarkPosYPct ?? 40}
                             angleDeg={resolved.watermarkAngle ?? -25}
                             opacity={resolved.watermarkOpacity ?? 0.25}
                             color={resolved.watermarkColor || 'gray'}
-                            fontSizePt={resolved.watermarkFontSize ?? 24}
+                            fontSizePt={resolved.watermarkFontSize ?? 16}
                           />
                         )}
 

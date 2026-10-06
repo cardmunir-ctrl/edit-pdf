@@ -61,11 +61,11 @@ export default function App() {
     customBottomCropPct: 0,
     watermarkEnabled: false,
     watermarkText: 'LUNAS',
-    watermarkPosYPct: 35, // Default posisi vertikal watermark
+    watermarkPosYPct: 40, // Default posisi vertikal watermark
     watermarkPosXPct: 50,
     watermarkAngle: -25,
     watermarkOpacity: 0.25,
-watermarkFontSize: 24,
+    watermarkFontSize: 16,
     watermarkColor: 'gray',
     qrEnabled: false,
     qrText: '',
@@ -335,7 +335,8 @@ watermarkFontSize: 24,
     hasAppliedPrintDefaultsRef.current = true;
     setOptions((prev) => ({
       ...prev,
-      watermarkFontSize: 24,
+      watermarkPosYPct: 40,
+      watermarkFontSize: 16,
       qrPosition: 'bottom-left',
       qrAutoSize: true,
     }));

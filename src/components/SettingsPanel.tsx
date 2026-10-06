@@ -422,13 +422,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <span>Ketinggian Watermark (Posisi Y):</span>
                   </label>
                   <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800 text-[10px]">
-                    {options.watermarkPosYPct ?? 35}%
+                    {options.watermarkPosYPct ?? 40}%
                   </span>
                 </div>
 
                 {/* Info tip khusus user request */}
                 <p className="text-[10px] text-indigo-900 dark:text-indigo-300 mb-2 leading-tight">
-                  <strong className="text-indigo-700 dark:text-indigo-400">Posisi 35% (Default):</strong> Tepat di area rincian / Sisa Gaji agar tulisan watermark tidak terpotong saat diprint & digunting.
+                  <strong className="text-indigo-700 dark:text-indigo-400">Posisi 40% (Default):</strong> Tepat di area rincian / Sisa Gaji agar tulisan watermark tidak terpotong saat diprint & digunting.
                 </p>
 
                 {/* Quick Presets for Position */}
@@ -437,7 +437,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     type="button"
                     onClick={() => updateOption('watermarkPosYPct', 45)}
                     className={`py-1 px-1.5 rounded text-[10px] font-semibold border text-center transition-all cursor-pointer ${
-                      (options.watermarkPosYPct ?? 45) === 45
+                      (options.watermarkPosYPct ?? 40) === 45
                         ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
                         : 'bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-indigo-50'
                     }`}
@@ -473,13 +473,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   min={20}
                   max={75}
                   step={1}
-                  value={options.watermarkPosYPct ?? 35}
+                  value={options.watermarkPosYPct ?? 40}
                   onChange={(e) => updateOption('watermarkPosYPct', parseInt(e.target.value, 10))}
                   className="w-full accent-indigo-600 dark:accent-indigo-500 cursor-pointer h-1.5 bg-indigo-200 dark:bg-indigo-900 rounded-lg"
                 />
                 <div className="flex justify-between text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 font-mono">
                   <span>20% (Atas)</span>
-                  <span className="text-indigo-600 dark:text-indigo-400 font-bold">35% (Default)</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-bold">40% (Default)</span>
                   <span>75% (Bawah)</span>
                 </div>
               </div>
@@ -579,7 +579,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       Ukuran Teks:
                     </label>
                     <span className="font-mono text-[10px] text-slate-600 dark:text-slate-400 font-bold">
-                      {options.watermarkFontSize ?? 24} pt
+                      {options.watermarkFontSize ?? 16} pt
                     </span>
                   </div>
                   <input
@@ -587,13 +587,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     min={16}
                     max={36}
                     step={2}
-                    value={options.watermarkFontSize ?? 24}
+                    value={options.watermarkFontSize ?? 16}
                     onChange={(e) => updateOption('watermarkFontSize', parseInt(e.target.value, 10))}
                     className="w-full accent-indigo-600 dark:accent-indigo-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg mt-1"
                   />
                   <div className="flex justify-between text-[9px] text-slate-400 dark:text-slate-500 mt-1 font-mono">
                     <span>16pt</span>
-                    <span className="text-indigo-600 dark:text-indigo-400">24pt (Default)</span>
+                    <span className="text-indigo-600 dark:text-indigo-400">16pt (Default)</span>
                     <span>36pt</span>
                   </div>
                 </div>
@@ -614,7 +614,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   <span>QR Code Nota</span>
                   {options.qrEnabled && (
                     <span className="text-[9px] bg-cyan-600 text-white font-mono px-1.5 py-0.2 rounded-full font-bold">
-                      Aktif ({(options.qrAutoSize ?? true) ? `auto ≤ ${options.qrSizeMm || 14}mm` : `${options.qrSizeMm || 14}mm`})
+                      Aktif ({(options.qrAutoSize ?? true) ? `auto ≥ ${options.qrSizeMm || 14}mm` : `${options.qrSizeMm || 14}mm`})
                     </span>
                   )}
                 </h4>
@@ -750,7 +750,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 <div className="flex items-center justify-between mb-1">
                   <label className="font-bold text-slate-900 dark:text-slate-100 text-[11px] flex items-center gap-1">
                     <Maximize2 className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                    <span>{(options.qrAutoSize ?? true) ? 'Batas Maks QR:' : 'Ukuran QR Code:'}</span>
+                    <span>{(options.qrAutoSize ?? true) ? 'Ukuran Min. QR:' : 'Ukuran QR Code:'}</span>
                   </label>
                   <span className="font-mono font-bold text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950 px-2 py-0.5 rounded border border-cyan-200 dark:border-cyan-800 text-[10px]">
                     {options.qrSizeMm || 14} mm
@@ -779,7 +779,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
                 <p className="text-[10px] text-cyan-900 dark:text-cyan-300 mb-2 leading-tight">
                   {(options.qrAutoSize ?? true)
-                    ? 'Otomatis: QR mengikuti ukuran slip (22% sisi terpendek), nilai di bawah jadi batas maksimum. 12–16 mm tetap standar optimal untuk pemindaian kamera smartphone.'
+                    ? 'Otomatis: nilai di bawah jadi ukuran dasar QR (tidak dikecilkan dari slip), QR hanya ikut membesar pada slip besar. 12–16 mm tetap standar optimal untuk pemindaian kamera smartphone.'
                     : 'Ukuran tetap dipakai apa adanya. 12–16 mm adalah standar optimal untuk mudah dipindai kamera smartphone tanpa memakan ruang teks nota.'}
                 </p>
 
@@ -816,7 +816,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 />
                 <div className="flex justify-between text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 font-mono">
                   <span>8 mm</span>
-                  <span className="text-cyan-600 dark:text-cyan-400 font-bold">14 mm (Batas Default)</span>
+                  <span className="text-cyan-600 dark:text-cyan-400 font-bold">14 mm (Default)</span>
                   <span>25 mm</span>
                 </div>
               </div>
