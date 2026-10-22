@@ -395,7 +395,7 @@ export default function App() {
           setTimeout(() => {
             document.body.removeChild(iframe);
             URL.revokeObjectURL(blobUrl);
-          }, 60000);
+          }, 15000);
         }, 300);
       };
     } catch (err: any) {

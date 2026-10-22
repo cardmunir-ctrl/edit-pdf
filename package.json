@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "probe:qr": "tsx scripts/qr-placement-probe.ts"
+    "probe:qr": "tsx scripts/qr-placement-probe.ts",
+    "test:color": "tsx scripts/test-color-normalize.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

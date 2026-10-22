@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { normalizeModernColors } from '../lib/colorNormalize';
 import {
   X,
   AlertCircle,
@@ -40,20 +41,6 @@ interface NeonBukuProduksiModalProps {
 
 const LAPORAN_GAJI_LIMIT = 300;
 
-const SLIP_COLOR_PROPERTIES = [
-  'color',
-  'background-color',
-  'border-top-color',
-  'border-right-color',
-  'border-bottom-color',
-  'border-left-color',
-  'outline-color',
-  'text-decoration-color',
-  'caret-color',
-  'fill',
-  'stroke',
-];
-
 // Instrumentasi import Buku Produksi. Hanya menulis ke console, tidak
 // mengubah alur render: scale html2canvas, kualitas PNG, dan urutan sequential
 // tetap sama. Hapus blok ini beserta pemanggilnya bila profiling selesai.
@@ -87,38 +74,6 @@ const toDateKey = (value: string): string => {
   if (Number.isNaN(date.getTime())) return '';
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-};
-
-// Tailwind v4 memakai oklch(), sedangkan html2canvas hanya bisa membaca rgb/hsl/hex.
-const normalizeModernColors = (clonedDoc: Document) => {
-  const ctx = document.createElement('canvas').getContext('2d');
-  if (!ctx) return;
-
-  const toRgb = (value: string) => {
-    ctx.clearRect(0, 0, 1, 1);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 1, 1);
-    ctx.fillStyle = value;
-    ctx.fillRect(0, 0, 1, 1);
-    const d = ctx.getImageData(0, 0, 1, 1).data;
-    return `rgb(${d[0]}, ${d[1]}, ${d[2]})`;
-  };
-
-  const visit = (el: HTMLElement) => {
-    const style = clonedDoc.defaultView?.getComputedStyle(el);
-    if (style) {
-      for (const prop of SLIP_COLOR_PROPERTIES) {
-        const value = style.getPropertyValue(prop);
-        if (value && (value.includes('oklch') || value.includes('color('))) {
-          el.style.setProperty(prop, toRgb(value));
-        }
-      }
-    }
-    for (const child of Array.from(el.children)) visit(child as HTMLElement);
-  };
-
-  visit(clonedDoc.documentElement);
-  visit(clonedDoc.body);
 };
 
 export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
@@ -317,9 +272,11 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
         // tidak berubah. onclone dipanggil html2canvas di dalam await di bawah,
         // sehingga totalnya sudah lengkap saat AfterCanvasAt diambil.
         const normalizeCallsRef = { count: 0, totalMs: 0 };
-        const oncloneTimed = (clonedDoc: Document) => {
+        const oncloneTimed = (clonedDoc: Document, clonedEl?: Element) => {
           const cloneStartedAt = perfNow();
-          normalizeModernColors(clonedDoc);
+          // Hanya normalisasi subtree slip yang dicapture, bukan seluruh dokumen
+          // clone (yang menyertakan UI modal dan komponen lain).
+          normalizeModernColors(clonedDoc, clonedEl ?? null);
           normalizeCallsRef.totalMs += perfNow() - cloneStartedAt;
           normalizeCallsRef.count += 1;
         };
@@ -343,6 +300,9 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
         if (cancelled) return;
 
         const dataUrl = canvas.toDataURL('image/png');
+        // Bebaskan memori canvas setelah encode selesai.
+        canvas.width = 0;
+        canvas.height = 0;
         const afterEncodeAt = perfNow();
 
         logImportPerf(
@@ -451,6 +411,8 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
           ` (render avg ${formatMs((importEndedAt - importStartedAt) / selectedSlips.length)} ms/slip)`
       );
 
+      // Lepas template off-screen dari DOM setelah semua slip selesai dirender.
+      setOffscreenSlip(null);
       onImportReceipts(receiptItems);
       onClose();
     } catch (err: any) {
