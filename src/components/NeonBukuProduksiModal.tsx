@@ -41,6 +41,15 @@ interface NeonBukuProduksiModalProps {
 
 const LAPORAN_GAJI_LIMIT = 300;
 
+// Tiru aturan Buku Produksi (lib/salaryStatus.ts -> isPaidSalaryStatus):
+// slip yang tersedia untuk diimpor hanya berstatus 'Lunas' dan 'Bayar Sebagian'.
+// Endpoint sudah memfilter status ini, filter ini hanya lapisan pengaman tambahan
+// agar status 'Belum Dibayar' tidak pernah tampil di frontend.
+const PAID_SALARY_STATUSES: readonly string[] = ['Lunas', 'Bayar Sebagian'];
+
+const isPaidSalaryStatus = (status: unknown): boolean =>
+  typeof status === 'string' && PAID_SALARY_STATUSES.includes(status);
+
 // Instrumentasi import Buku Produksi. Hanya menulis ke console, tidak
 // mengubah alur render: scale html2canvas, kualitas PNG, dan urutan sequential
 // tetap sama. Hapus blok ini beserta pemanggilnya bila profiling selesai.
@@ -136,7 +145,9 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
       return isNaN(n) ? 0 : n;
     };
 
-    return rows.map((row: any) => ({
+    return rows
+      .filter((row: any) => isPaidSalaryStatus(row.status))
+      .map((row: any) => ({
       id: String(row.id ?? ''),
       worker_id: row.worker_id ?? undefined,
       worker_name: String(row.worker_name ?? ''),
@@ -441,7 +452,7 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
                 Laporan Gaji — Buku Produksi
               </h2>
               <p className="text-[11px] sm:text-xs text-slate-400 leading-tight">
-                Slip gaji yang sudah Lunas
+                Slip gaji yang sudah dibayar (Lunas &amp; Bayar Sebagian)
               </p>
             </div>
           </div>
@@ -604,9 +615,9 @@ export const NeonBukuProduksiModal: React.FC<NeonBukuProduksiModalProps> = ({
           {!isLoading && !loadError && !hasData && (
             <div className="py-10 sm:py-16 flex flex-col items-center justify-center text-slate-400 gap-2 text-center px-6">
               <SearchX className="w-8 h-8 text-slate-600" />
-              <p className="text-sm font-bold text-slate-300">Belum ada slip gaji Lunas</p>
+              <p className="text-sm font-bold text-slate-300">Belum ada slip gaji yang sudah dibayar</p>
               <p className="text-xs text-slate-500 max-w-xs">
-                Slip yang sudah dibayar di Buku Produksi akan muncul di sini secara otomatis.
+                Slip Lunas dan Bayar Sebagian dari Buku Produksi akan muncul di sini secara otomatis.
               </p>
             </div>
           )}

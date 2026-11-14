@@ -329,7 +329,9 @@ app.post('/api/neon/fetch-records', async (req, res) => {
 });
 
 // Laporan Gaji Buku Produksi.
-// Setara query di Buku Produksi: buku_gaji -> status 'Lunas' -> ORDER BY tanggal DESC.
+// Setara query di Buku Produksi: LaporanGaji.tsx memakai
+// isPaidSalaryStatus (lib/salaryStatus.ts) yang mengembalikan true untuk
+// status 'Lunas' dan 'Bayar Sebagian' -> ORDER BY tanggal DESC.
 // Nama tabel ditulis di server, tidak pernah diambil dari client, dan koneksi hanya
 // dibaca dari env (NEON_DATABASE_URL / DATABASE_URL).
 const LAPORAN_GAJI_SQL = `
@@ -348,7 +350,7 @@ const LAPORAN_GAJI_SQL = `
     parent_session_id,
     created_at
   FROM buku_gaji
-  WHERE status = 'Lunas'
+  WHERE status IN ('Lunas', 'Bayar Sebagian')
 `;
 
 app.post('/api/neon/laporan-gaji', async (req, res) => {
@@ -414,7 +416,7 @@ app.post('/api/neon/laporan-gaji', async (req, res) => {
         success: true,
         source: 'buku_gaji',
         filters: {
-          status: 'Lunas',
+          status: ['Lunas', 'Bayar Sebagian'],
           startDate: parsedStart.value || null,
           endDate: parsedEnd.value || null,
         },

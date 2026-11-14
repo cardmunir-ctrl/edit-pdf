@@ -25,7 +25,7 @@ const LAPORAN_GAJI_SQL = `
     parent_session_id,
     created_at
   FROM buku_gaji
-  WHERE status = 'Lunas'
+  WHERE status IN ('Lunas', 'Bayar Sebagian')
 `;
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -198,7 +198,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         success: true,
         source: 'buku_gaji',
         filters: {
-          status: 'Lunas',
+          status: ['Lunas', 'Bayar Sebagian'],
           startDate: parsedStart.value || null,
           endDate: parsedEnd.value || null,
         },
