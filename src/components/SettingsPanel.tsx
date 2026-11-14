@@ -422,7 +422,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <span>Ketinggian Watermark (Posisi Y):</span>
                   </label>
                   <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800 text-[10px]">
-                    {options.watermarkPosYPct ?? 40}%
+                    {options.watermarkPosYPct ?? 30}%
                   </span>
                 </div>
 
@@ -437,7 +437,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     type="button"
                     onClick={() => updateOption('watermarkPosYPct', 45)}
                     className={`py-1 px-1.5 rounded text-[10px] font-semibold border text-center transition-all cursor-pointer ${
-                      (options.watermarkPosYPct ?? 40) === 45
+                      (options.watermarkPosYPct ?? 30) === 45
                         ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
                         : 'bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-indigo-50'
                     }`}
@@ -473,7 +473,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   min={20}
                   max={75}
                   step={1}
-                  value={options.watermarkPosYPct ?? 40}
+                  value={options.watermarkPosYPct ?? 30}
                   onChange={(e) => updateOption('watermarkPosYPct', parseInt(e.target.value, 10))}
                   className="w-full accent-indigo-600 dark:accent-indigo-500 cursor-pointer h-1.5 bg-indigo-200 dark:bg-indigo-900 rounded-lg"
                 />
@@ -542,8 +542,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </div>
               </div>
 
-              {/* 4. Kemiringan / Rotasi & Ukuran Teks */}
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-indigo-100 dark:border-indigo-900/40">
+              {/* 4. Kemiringan / Rotasi */}
+              <div className="pt-1 border-t border-indigo-100 dark:border-indigo-900/40">
                 {/* Kemiringan Derajat */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -572,30 +572,32 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Ukuran Teks (pt) */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-semibold text-slate-800 dark:text-slate-200 text-[11px]">
-                      Ukuran Teks:
-                    </label>
-                    <span className="font-mono text-[10px] text-slate-600 dark:text-slate-400 font-bold">
-                      {options.watermarkFontSize ?? 16} pt
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={16}
-                    max={36}
-                    step={2}
-                    value={options.watermarkFontSize ?? 16}
-                    onChange={(e) => updateOption('watermarkFontSize', parseInt(e.target.value, 10))}
-                    className="w-full accent-indigo-600 dark:accent-indigo-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg mt-1"
-                  />
-                  <div className="flex justify-between text-[9px] text-slate-400 dark:text-slate-500 mt-1 font-mono">
-                    <span>16pt</span>
-                    <span className="text-indigo-600 dark:text-indigo-400">16pt (Default)</span>
-                    <span>36pt</span>
-                  </div>
+              </div>
+
+              {/* 5. Ukuran Font Watermark (Rentang 8-48pt, Default 16pt) */}
+              <div className="p-2.5 bg-white dark:bg-slate-800/90 rounded-lg border border-indigo-200 dark:border-indigo-900/70">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-900 dark:text-slate-100 text-[11px] flex items-center gap-1">
+                    <Type className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <span>Ukuran Font Watermark:</span>
+                  </label>
+                  <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800 text-[10px]">
+                    {options.watermarkFontSize ?? 16} pt
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={8}
+                  max={48}
+                  step={2}
+                  value={options.watermarkFontSize ?? 16}
+                  onChange={(e) => updateOption('watermarkFontSize', parseInt(e.target.value, 10))}
+                  className="w-full accent-indigo-600 dark:accent-indigo-500 cursor-pointer h-1.5 bg-indigo-200 dark:bg-indigo-900 rounded-lg"
+                />
+                <div className="flex justify-between text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 font-mono">
+                  <span>8pt</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-bold">16pt (Default)</span>
+                  <span>48pt</span>
                 </div>
               </div>
             </div>

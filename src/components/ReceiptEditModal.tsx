@@ -59,10 +59,13 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
     item.customConfig?.watermarkText ?? globalOptions.watermarkText ?? 'LUNAS'
   );
   const [watermarkPosYPct, setWatermarkPosYPct] = useState<number>(
-    item.customConfig?.watermarkPosYPct ?? globalOptions.watermarkPosYPct ?? 40
+    item.customConfig?.watermarkPosYPct ?? globalOptions.watermarkPosYPct ?? 30
   );
   const [watermarkColor, setWatermarkColor] = useState<'gray' | 'red' | 'blue' | 'green'>(
     item.customConfig?.watermarkColor ?? globalOptions.watermarkColor ?? 'gray'
+  );
+  const [watermarkFontSize, setWatermarkFontSize] = useState<number>(
+    item.customConfig?.watermarkFontSize ?? globalOptions.watermarkFontSize ?? 16
   );
 
   // QR Code state
@@ -170,9 +173,11 @@ export const ReceiptEditModal: React.FC<ReceiptEditModalProps> = ({
       ? true
       : globalOptions.watermarkEnabled ?? false;
   const resolvedWmText = watermarkMode === 'custom' ? watermarkText : globalOptions.watermarkText || 'LUNAS';
-  const resolvedWmPosY = watermarkMode === 'custom' ? watermarkPosYPct : globalOptions.watermarkPosYPct ?? 40;
+  const resolvedWmPosY = watermarkMode === 'custom' ? watermarkPosYPct : globalOptions.watermarkPosYPct ?? 30;
   const resolvedWmColor = watermarkMode === 'custom' ? watermarkColor : globalOptions.watermarkColor || 'gray';
-const resolvedWmFontPx = calculateWatermarkFontPx(previewBoxPx.h, globalOptions.watermarkFontSize ?? 16);
+  const resolvedWmFontSizePt =
+    watermarkMode === 'custom' ? watermarkFontSize : globalOptions.watermarkFontSize ?? 16;
+const resolvedWmFontPx = calculateWatermarkFontPx(previewBoxPx.h, resolvedWmFontSizePt);
 
   const handleSave = async () => {
     // 1. Reprocess image if crop or rotation changed
@@ -191,6 +196,7 @@ const resolvedWmFontPx = calculateWatermarkFontPx(previewBoxPx.h, globalOptions.
       watermarkText: watermarkMode === 'custom' ? watermarkText : undefined,
       watermarkPosYPct: watermarkMode === 'custom' ? watermarkPosYPct : undefined,
       watermarkColor: watermarkMode === 'custom' ? watermarkColor : undefined,
+      watermarkFontSize: watermarkMode === 'custom' ? watermarkFontSize : undefined,
       qrMode,
       qrText: qrMode === 'custom' ? qrText : undefined,
       qrPosition: qrMode === 'custom' ? qrPosition : undefined,
@@ -218,8 +224,9 @@ const resolvedWmFontPx = calculateWatermarkFontPx(previewBoxPx.h, globalOptions.
     setRotation(globalOptions.globalRotation ?? 0);
     setWatermarkMode('inherit');
     setWatermarkText(globalOptions.watermarkText ?? 'LUNAS');
-    setWatermarkPosYPct(globalOptions.watermarkPosYPct ?? 40);
+    setWatermarkPosYPct(globalOptions.watermarkPosYPct ?? 30);
     setWatermarkColor(globalOptions.watermarkColor ?? 'gray');
+    setWatermarkFontSize(globalOptions.watermarkFontSize ?? 16);
     setQrMode('inherit');
     setQrText(globalOptions.qrText ?? '');
     setQrPosition(globalOptions.qrPosition ?? 'bottom-left');
@@ -630,6 +637,26 @@ const resolvedWmFontPx = calculateWatermarkFontPx(previewBoxPx.h, globalOptions.
                         step={1}
                         value={watermarkPosYPct}
                         onChange={(e) => setWatermarkPosYPct(parseInt(e.target.value, 10))}
+                        className="w-full accent-indigo-600 h-1.5 bg-indigo-200 dark:bg-indigo-900 rounded-lg cursor-pointer"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-semibold text-slate-800 dark:text-slate-200 text-[11px]">
+                          Ukuran Font Watermark:
+                        </label>
+                        <span className="font-mono text-indigo-700 dark:text-indigo-300 font-bold">
+                          {watermarkFontSize} pt
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={8}
+                        max={48}
+                        step={2}
+                        value={watermarkFontSize}
+                        onChange={(e) => setWatermarkFontSize(parseInt(e.target.value, 10))}
                         className="w-full accent-indigo-600 h-1.5 bg-indigo-200 dark:bg-indigo-900 rounded-lg cursor-pointer"
                       />
                     </div>

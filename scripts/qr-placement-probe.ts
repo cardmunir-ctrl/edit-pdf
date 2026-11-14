@@ -127,7 +127,7 @@ const options: GridOptions = {
   customBottomCropPct: 0,
   watermarkEnabled: false,
   watermarkText: 'LUNAS',
-  watermarkPosYPct: 40,
+  watermarkPosYPct: 30,
   watermarkPosXPct: 50,
   watermarkAngle: -25,
   watermarkOpacity: 0.25,

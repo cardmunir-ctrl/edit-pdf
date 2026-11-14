@@ -61,7 +61,7 @@ export default function App() {
     customBottomCropPct: 0,
     watermarkEnabled: false,
     watermarkText: 'LUNAS',
-    watermarkPosYPct: 40, // Default posisi vertikal watermark
+    watermarkPosYPct: 30, // Default posisi vertikal watermark
     watermarkPosXPct: 50,
     watermarkAngle: -25,
     watermarkOpacity: 0.25,
@@ -335,7 +335,7 @@ export default function App() {
     hasAppliedPrintDefaultsRef.current = true;
     setOptions((prev) => ({
       ...prev,
-      watermarkPosYPct: 40,
+      watermarkPosYPct: 30,
       watermarkFontSize: 16,
       qrPosition: 'bottom-left',
       qrAutoSize: true,
@@ -349,7 +349,46 @@ export default function App() {
 
     try {
       const doc = await buildA4GridPdf(receipts, options);
-      doc.save('edit-pdf_SiapCetak.pdf');
+      const fileName = 'edit-pdf_SiapCetak.pdf';
+
+      // Safari iPhone/iPad sering mengabaikan atribut `download`, sehingga PDF
+      // terbuka sebagai pratinjau tanpa opsi simpan. Jika perangkat mendukung
+      // berbagi file, gunakan Web Share API agar muncul Share Sheet dengan opsi
+      // "Simpan ke File". Share harus dipanggil sedekat mungkin dengan tap
+      // tombol (user gesture); jika aktivasi sudah hilang setelah proses
+      // async, Safari melempar NotAllowedError dan kita jatuh ke fallback.
+      let shared = false;
+      let shareCancelled = false;
+      try {
+        const pdfBlob = doc.output('blob');
+        const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+        if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [pdfFile] })) {
+          try {
+            await navigator.share({ files: [pdfFile], title: fileName });
+            shared = true;
+          } catch (shareErr: any) {
+            if (shareErr?.name === 'AbortError') {
+              // User menutup Share Sheet sendiri — bukan error.
+              shareCancelled = true;
+            } else {
+              // NotAllowedError / error lain: lanjut ke fallback di bawah.
+              console.warn('Web Share gagal, memakai fallback download:', shareErr);
+            }
+          }
+        }
+      } catch (shareSetupErr: any) {
+        console.warn('Web Share tidak tersedia, memakai fallback download:', shareSetupErr);
+      }
+
+      if (shared) {
+        // Sudah tersimpan lewat Share Sheet.
+      } else if (shareCancelled) {
+        // Dibatalkan user: tanpa confetti, tanpa pesan error.
+        return;
+      } else {
+        // Desktop & browser tanpa Web Share: perilaku lama dipertahankan.
+        doc.save(fileName);
+      }
 
       try {
         confetti({

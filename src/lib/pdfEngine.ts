@@ -39,6 +39,7 @@ export interface ReceiptCustomConfig {
   watermarkText?: string;
   watermarkPosYPct?: number;
   watermarkColor?: 'gray' | 'red' | 'blue' | 'green';
+  watermarkFontSize?: number;
 
   // QR Code per file/nota
   qrMode?: QrMode;
@@ -90,7 +91,7 @@ export interface GridOptions {
   // Watermark (Tanda Air) settings
   watermarkEnabled?: boolean; // Pilihan ada watermark atau tidak
   watermarkText?: string; // Teks watermark (contoh: LUNAS)
-  watermarkPosYPct?: number; // Posisi vertikal % (default 40%)
+  watermarkPosYPct?: number; // Posisi vertikal % (default 30%)
   watermarkPosXPct?: number; // Posisi horizontal % (default 50%)
   watermarkAngle?: number; // Sudut kemiringan teks dalam derajat (default -25°)
   watermarkOpacity?: number; // Transparansi 0.05 - 0.70 (default 0.25)
@@ -459,7 +460,7 @@ export function resolveReceiptSettings(
   // 1. Watermark resolution
   let watermarkEnabled = globalOptions.watermarkEnabled ?? false;
   let watermarkText = globalOptions.watermarkText || 'LUNAS';
-  let watermarkPosYPct = globalOptions.watermarkPosYPct ?? 40;
+  let watermarkPosYPct = globalOptions.watermarkPosYPct ?? 30;
   let watermarkPosXPct = globalOptions.watermarkPosXPct ?? 50;
   let watermarkAngle = globalOptions.watermarkAngle ?? -25;
   let watermarkOpacity = globalOptions.watermarkOpacity ?? 0.25;
@@ -473,6 +474,7 @@ export function resolveReceiptSettings(
     if (conf.watermarkText !== undefined) watermarkText = conf.watermarkText;
     if (conf.watermarkPosYPct !== undefined) watermarkPosYPct = conf.watermarkPosYPct;
     if (conf.watermarkColor !== undefined) watermarkColor = conf.watermarkColor;
+    if (conf.watermarkFontSize !== undefined) watermarkFontSize = conf.watermarkFontSize;
   }
 
   // 2. QR Code resolution
@@ -824,7 +826,7 @@ export async function buildA4GridPdf(
               drawW,
               drawH,
               resolved.watermarkPosXPct ?? 50,
-              resolved.watermarkPosYPct ?? 40,
+              resolved.watermarkPosYPct ?? 30,
               resolved.watermarkAngle ?? -25,
               resolved.watermarkOpacity ?? 0.25,
               resolved.watermarkColor || 'gray',
@@ -1014,7 +1016,7 @@ export async function downloadSingleReceiptPdf(
         pdfWidthMm,
         pdfHeightMm,
         50,
-        receipt.watermarkPosYPct ?? 40,
+        receipt.watermarkPosYPct ?? 30,
         -25,
         0.28,
         receipt.watermarkColor || 'gray',
