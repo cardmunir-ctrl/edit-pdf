@@ -3,9 +3,14 @@
  * Precision A4 Layout Engine supporting Portrait (2x4) and Landscape (4x2)
  * with specific inter-receipt Gap (margin antar-nota) and selectable 1-8 slot display.
  * Ultra-High Resolution (4.0x Scale) Lossless PNG Rendering.
+ *
+ * Kompresi PDF: semua stream (konten halaman dan gambar) dikompresi Flate
+ * lossless. Data piksel tidak pernah diubah — ukuran file mengecil hanya
+ * karena byte disimpan terkompresi, bukan mentah.
  */
 import { jsPDF } from 'jspdf';
 import * as pdfjsLib from 'pdfjs-dist';
+import { zlibSync, unzlibSync } from 'fflate';
 import { getQrDataUrl } from './qrCodeHelper';
 
 // Configure PDF.js worker
@@ -712,6 +717,243 @@ export function calculateQrPositionMm(
 }
 
 /**
+ * ============================================================================
+ * Passthrough PNG -> PDF (lossless, tanpa re-encode)
+ * ============================================================================
+ *
+ * Penyebab utama PDF besar sebelumnya: jsPDF menyimpan gambar PNG sebagai
+ * byte piksel mentah (3 byte/piksel) tanpa kompresi apa pun, sehingga satu
+ * nota resolusi tinggi bisa memakan ~10-20 MB di dalam PDF.
+ *
+ * Solusi (100% lossless — piksel identik byte-per-byte):
+ *
+ * 1. PNG opak (nota hasil canvas, QR Code): PNG non-interlace menyimpan
+ *    scanline yang sudah difilter per baris lalu dikompresi zlib di dalam
+ *    chunk IDAT. Format ini PERSIS sama dengan image stream PDF dengan
+ *    /Filter /FlateDecode + /Predictor 15 (PNG optimum). Jadi byte IDAT
+ *    browser disematkan langsung tanpa dekode/re-encode — hasilnya
+ *    piksel identik dan ukuran = hasil kompresi PNG browser.
+ *
+ * 2. PNG dengan alpha (overlay watermark): kanal RGB dan A dipisah
+ *    (salin byte murni, tanpa perubahan nilai), lalu masing-masing
+ *    dikompresi zlib lossless (fflate, sudah dibawa jsPDF).
+ *
+ * PNG yang tidak didukung (palet, interlace, 16-bit) jatuh kembali ke
+ * prosesPNG bawaan jsPDF, yang dengan `compress: true` ikut terkompresi
+ * Flate (level SLOW) — tetap lossless, hanya lebih lambat.
+ */
+
+interface PdfPngInfo {
+  width: number;
+  height: number;
+  bitDepth: number;
+  colorType: number;
+  interlace: number;
+  idat: Uint8Array;
+}
+
+function parsePngForPassthrough(bytes: Uint8Array): PdfPngInfo | null {
+  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (bytes.length < 33) return null;
+  for (let i = 0; i < 8; i++) {
+    if (bytes[i] !== sig[i]) return null;
+  }
+  let pos = 8;
+  let ihdr: PdfPngInfo | null = null;
+  let idat: Uint8Array | null = null;
+  while (pos + 8 <= bytes.length) {
+    const dv = new DataView(bytes.buffer, bytes.byteOffset + pos, 8);
+    const len = dv.getUint32(0);
+    const type = String.fromCharCode(bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]);
+    if (pos + 12 + len > bytes.length) return null;
+    if (type === 'IHDR' && len >= 13) {
+      const d = bytes.subarray(pos + 8, pos + 8 + 13);
+      ihdr = {
+        width: ((d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3]) >>> 0,
+        height: ((d[4] << 24) | (d[5] << 16) | (d[6] << 8) | d[7]) >>> 0,
+        bitDepth: d[8],
+        colorType: d[9],
+        interlace: d[12],
+        idat: new Uint8Array(0),
+      };
+    } else if (type === 'IDAT') {
+      const part = bytes.subarray(pos + 8, pos + 8 + len);
+      if (idat) {
+        const merged = new Uint8Array(idat.length + part.length);
+        merged.set(idat);
+        merged.set(part, idat.length);
+        idat = merged as Uint8Array;
+      } else {
+        idat = part;
+      }
+    } else if (type === 'IEND') {
+      break;
+    }
+    pos += 12 + len;
+  }
+  if (!ihdr || !idat) return null;
+  ihdr.idat = idat;
+  return ihdr;
+}
+
+function bytesToBinaryString(u8: Uint8Array): string {
+  let out = '';
+  const CHUNK = 8192;
+  for (let i = 0; i < u8.length; i += CHUNK) {
+    out += String.fromCharCode.apply(null, Array.from(u8.subarray(i, Math.min(i + CHUNK, u8.length))));
+  }
+  return out;
+}
+
+/**
+ * Decode scanline PNG (inverse PNG filter per baris) menjadi piksel mentah.
+ * Dipakai hanya untuk PNG ber-alpha (watermark) saat memisahkan kanal.
+ */
+function unfilterPngScanlines(raw: Uint8Array, width: number, channels: number): Uint8Array {
+  const stride = width * channels;
+  const height = Math.floor(raw.length / (stride + 1));
+  const out = new Uint8Array(width * height * channels);
+  let prev = new Uint8Array(stride);
+  for (let y = 0; y < height; y++) {
+    const ft = raw[y * (stride + 1)];
+    const row = raw.subarray(y * (stride + 1) + 1, y * (stride + 1) + 1 + stride);
+    const cur = new Uint8Array(row);
+    const bpp = channels;
+    for (let i = 0; i < stride; i++) {
+      const a = i >= bpp ? cur[i - bpp] : 0;
+      const b = prev[i];
+      const c = i >= bpp ? prev[i - bpp] : 0;
+      let v: number;
+      if (ft === 0) v = cur[i];
+      else if (ft === 1) v = cur[i] + a;
+      else if (ft === 2) v = cur[i] + b;
+      else if (ft === 3) v = cur[i] + ((a + b) >> 1);
+      else if (ft === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a);
+        const pb = Math.abs(p - b);
+        const pc = Math.abs(p - c);
+        v = cur[i] + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c);
+      } else throw new Error('PNG filter tidak dikenal: ' + ft);
+      cur[i] = v & 0xff;
+    }
+    out.set(cur, y * stride);
+    prev = cur;
+  }
+  return out;
+}
+
+function pngPassthroughResult(
+  alias: unknown,
+  index: number,
+  width: number,
+  height: number,
+  colorsPerPixel: number,
+  dataBinary: string,
+  sMaskBinary?: string
+) {
+  const result: Record<string, unknown> = {
+    alias,
+    index,
+    data: dataBinary,
+    filter: 'FlateDecode',
+    decodeParameters: `/Predictor 15 /Colors ${colorsPerPixel} /BitsPerComponent 8 /Columns ${width}`,
+    predictor: 15,
+    width,
+    height,
+    bitsPerComponent: 8,
+    colorSpace: colorsPerPixel === 3 ? 'DeviceRGB' : 'DeviceGray',
+  };
+  if (sMaskBinary) {
+    result.sMask = sMaskBinary;
+    result.sMaskBitsPerComponent = 8;
+  }
+  return result;
+}
+
+function installPngPassthrough(): void {
+  const api = jsPDF.API as unknown as Record<string, any>;
+  if (typeof api.processPNG !== 'function') return;
+  if (api.__pngPassthroughInstalled) return; // cegah double-wrap (mis. HMR)
+  api.__pngPassthroughInstalled = true;
+  const originalProcessPng = api.processPNG;
+
+  api.processPNG = function (this: unknown, imageData: unknown, index: number, alias: unknown, compression: unknown) {
+    try {
+      let bytes: Uint8Array;
+      if (imageData instanceof Uint8Array) {
+        bytes = imageData;
+      } else if (typeof imageData === 'string') {
+        bytes = new Uint8Array(imageData.length);
+        for (let i = 0; i < imageData.length; i++) bytes[i] = imageData.charCodeAt(i) & 0xff;
+      } else {
+        return originalProcessPng.call(this, imageData, index, alias, compression);
+      }
+
+      const png = parsePngForPassthrough(bytes);
+      // Hanya format yang dihasilkan canvas.toDataURL / qrcode: depth 8, non-interlace.
+      // Selain itu (palet, interlace, 16-bit) -> proses bawaan jsPDF.
+      if (!png || png.bitDepth !== 8 || png.interlace !== 0) {
+        return originalProcessPng.call(this, imageData, index, alias, compression);
+      }
+
+      const { width, height, colorType, idat } = png;
+
+      // PNG opak RGB / grayscale: IDAT disematkan apa adanya (nol re-encode).
+      if (colorType === 2 || colorType === 0) {
+        const colorsPerPixel = colorType === 2 ? 3 : 1;
+        return pngPassthroughResult(
+          alias,
+          index,
+          width,
+          height,
+          colorsPerPixel,
+          bytesToBinaryString(idat)
+        );
+      }
+
+      // PNG ber-alpha (RGB+alpha atau Gray+alpha): pisahkan kanal warna dan
+      // alpha, salin nilai apa adanya (tanpa koreksi warna), lalu kompresi
+      // zlib lossless per kanal.
+      if (colorType === 6 || colorType === 4) {
+        const colorsPerPixel = colorType === 6 ? 3 : 1;
+        const pixels = unfilterPngScanlines(unzlibSync(idat), width, colorsPerPixel + 1);
+        const rgbStride = width * colorsPerPixel;
+        const colorRows = new Uint8Array((rgbStride + 1) * height);
+        const alphaRows = new Uint8Array((width + 1) * height);
+        let needSMask = false;
+        for (let y = 0; y < height; y++) {
+          colorRows[y * (rgbStride + 1)] = 0;
+          alphaRows[y * (width + 1)] = 0;
+          const rowOff = y * width * (colorsPerPixel + 1);
+          for (let x = 0; x < width; x++) {
+            const s = rowOff + x * (colorsPerPixel + 1);
+            for (let c = 0; c < colorsPerPixel; c++) {
+              colorRows[y * (rgbStride + 1) + 1 + x * colorsPerPixel + c] = pixels[s + c];
+            }
+            const alpha = pixels[s + colorsPerPixel];
+            if (alpha < 255) needSMask = true;
+            alphaRows[y * (width + 1) + 1 + x] = alpha;
+          }
+        }
+        const colorBinary = bytesToBinaryString(zlibSync(colorRows, { level: 6 }));
+        const sMaskBinary = needSMask
+          ? bytesToBinaryString(zlibSync(alphaRows, { level: 6 }))
+          : undefined;
+        return pngPassthroughResult(alias, index, width, height, colorsPerPixel, colorBinary, sMaskBinary);
+      }
+
+      return originalProcessPng.call(this, imageData, index, alias, compression);
+    } catch (err) {
+      console.warn('PNG passthrough gagal, memakai prosesPNG bawaan jsPDF:', err);
+      return originalProcessPng.call(this, imageData, index, alias, compression);
+    }
+  };
+}
+
+installPngPassthrough();
+
+/**
  * Build jsPDF Document supporting Portrait (2x4) and Landscape (4x2)
  * using the specific inter-receipt gap (gapMm) and user-selected displayCount (1 to 8).
  * Supports per-receipt customization, watermark, and QR Code generation.
@@ -727,7 +969,9 @@ export async function buildA4GridPdf(
     orientation: layout.isLandscape ? 'landscape' : 'portrait',
     unit: 'mm',
     format: 'a4',
-    compress: false, // Don't lossy-compress images to preserve crystal clear text
+    // Kompresi Flate LOSSLESS untuk stream konten halaman (garis potong,
+    // nomor halaman). Tidak mengubah piksel gambar sama sekali.
+    compress: true,
   });
 
   let activeReceipts = [...receipts];
@@ -802,7 +1046,10 @@ export async function buildA4GridPdf(
           drawH = scaledH;
         }
 
-        // Draw image cleanly without any jsPDF matrix bugs using lossless PNG
+        // Draw image cleanly without any jsPDF matrix bugs using lossless PNG.
+        // Tanpa argumen kompresi: gambar disematkan lewat passthrough PNG
+        // lossless (byte IDAT browser), dan fallback jsPDF otomatis
+        // terkompresi Flate karena compress: true.
         try {
           doc.addImage(
             item.dataUrl,
@@ -811,8 +1058,7 @@ export async function buildA4GridPdf(
             drawY,
             drawW,
             drawH,
-            undefined,
-            'NONE' // Maximum sharpness, zero downsampling compression
+            undefined
           );
         } catch (err) {
           console.error('Gagal menggambar nota ke PDF:', err);
@@ -841,8 +1087,7 @@ export async function buildA4GridPdf(
                 drawY,
                 drawW,
                 drawH,
-                undefined,
-                'NONE'
+                undefined
               );
             }
           } catch (wmErr) {
@@ -880,8 +1125,7 @@ export async function buildA4GridPdf(
                 qrY,
                 qrSize,
                 qrSize,
-                undefined,
-                'NONE'
+                undefined
               );
             }
           } catch (qrErr) {
@@ -1023,7 +1267,7 @@ export async function downloadSingleReceiptPdf(
         22
       );
       if (wmPng) {
-        doc.addImage(wmPng, 'PNG', 0, 0, pdfWidthMm, pdfHeightMm, undefined, 'NONE');
+        doc.addImage(wmPng, 'PNG', 0, 0, pdfWidthMm, pdfHeightMm, undefined);
       }
     } catch (e) {
       console.error('Error drawing watermark on single PDF:', e);
